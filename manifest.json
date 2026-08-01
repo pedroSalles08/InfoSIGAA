@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Monitor de Notas SIGAA",
+  "description": "Mostra as notas do aluno no SIGAA em um painel local da extensao.",
+  "version": "0.1.0",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://sig.iffarroupilha.edu.br/sigaa/*"],
+  "action": {
+    "default_title": "Monitor de Notas SIGAA",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  }
+}

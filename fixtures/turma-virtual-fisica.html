@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head><meta charset="utf-8"><title>Turma Virtual - Fixture sintética</title></head>
+  <body>
+    <header>
+      <span id="linkCodigoTurma">99990001</span>
+      <span id="linkNomeTurma">FÍSICA</span>
+    </header>
+    <aside>
+      <div>Aulas (Ministradas/Total): <i>61 / 120</i></div>
+      <div class="progress"><div class="progress-bar" style="width: 51%;">51%</div></div>
+      <div>% de Carga Horária Ministrada</div>
+    </aside>
+    <form id="formTurma" name="formTurma" action="/sigaa/ava/index.jsf" method="post">
+      <input type="hidden" name="javax.faces.ViewState" value="TEST_VIEW_STATE">
+      <a class="linkTurma" href="#" onclick="return jsfcljs(this,{'formTurma:entrar1':'formTurma:entrar1','frontEndIdTurma':'TEST_TURMA_1'},'');">99990001 - FÍSICA (120h) - Turma: TESTE (2026)</a>
+      <a class="linkTurma" href="#" onclick="return jsfcljs(this,{'formTurma:entrar2':'formTurma:entrar2','frontEndIdTurma':'TEST_TURMA_2'},'');">99990002 - PROGRAMAÇÃO WEB II (80h) - Turma: TESTE (2026)</a>
+      <a class="linkTurma" href="#" onclick="return jsfcljs(this,{'formTurma:entrar3':'formTurma:entrar3','frontEndIdTurma':'TEST_TURMA_3'},'');">99990003 - LÍNGUA PORTUGUESA E LITERATURA (80h) - Turma: TESTE (2026)</a>
+    </form>
+    <form id="formMenu" name="formMenu" action="/sigaa/ava/index.jsf" method="post">
+      <input type="hidden" name="javax.faces.ViewState" value="TEST_VIEW_STATE">
+      <a href="#" onclick="return jsfcljs(this,{'formMenu:verNotas':'formMenu:verNotas'},'');">Ver Notas</a>
+    </form>
+  </body>
+</html>

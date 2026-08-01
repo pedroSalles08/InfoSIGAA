@@ -1,0 +1,23 @@
+# Capturas privadas e dados locais do SIGAA
+fixtures/private/
+
+# Segredos e configuracao local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencias e artefatos de build/publicacao
+node_modules/
+dist/
+build/
+*.crx
+*.zip
+
+# Editores e sistema operacional
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini

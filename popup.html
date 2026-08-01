@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Monitor de Notas SIGAA</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <div>
+          <h1>Notas SIGAA</h1>
+          <p id="last-updated" class="muted">Nenhuma atualizacao ainda</p>
+        </div>
+        <button id="refresh-button" type="button">Atualizar</button>
+      </header>
+
+      <section id="status" class="status" hidden></section>
+      <section class="controls" aria-label="Filtros de matérias">
+        <input id="course-search" class="search-input" type="search" placeholder="Buscar matéria..." autocomplete="off">
+        <div id="course-filters" class="filters" role="tablist" aria-label="Filtrar matérias">
+          <button class="filter-button active" type="button" data-filter="all" role="tab" aria-selected="true">Todas</button>
+          <button class="filter-button" type="button" data-filter="with-grades" role="tab" aria-selected="false">Com notas</button>
+          <button class="filter-button" type="button" data-filter="no-grades" role="tab" aria-selected="false">Sem notas</button>
+          <button class="filter-button" type="button" data-filter="changed" role="tab" aria-selected="false">Alteradas</button>
+          <button class="filter-button" type="button" data-filter="errors" role="tab" aria-selected="false">Erros</button>
+        </div>
+      </section>
+      <section id="courses" class="courses"></section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
