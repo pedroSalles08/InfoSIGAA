@@ -951,9 +951,55 @@
     };
   }
 
+  function isAuthenticationPage(html, responseUrl, status) {
+    if (Number(status) === 401 || Number(status) === 403) {
+      return true;
+    }
+
+    const normalizedUrl = String(responseUrl || "").toLowerCase();
+    const authenticationUrlPatterns = [
+      /\/vertelalogin(?:\.[a-z0-9]+)?(?:[/?#]|$)/,
+      /\/(?:login|signin|logar|autenticar)(?:[/.?#-]|$)/,
+      /\/sso(?:[/.?#-]|$)/,
+      /\/oauth2\/authorization(?:[/?#]|$)/,
+      /\/auth\/(?:login|realms)(?:[/?#]|$)/
+    ];
+
+    if (authenticationUrlPatterns.some((pattern) => pattern.test(normalizedUrl))) {
+      return true;
+    }
+
+    const source = String(html || "");
+    const text = normalizeKey(stripTags(source));
+    const expiredMarkers = [
+      "sessao expirada",
+      "sua sessao expirou",
+      "sessao foi expirada",
+      "sessao invalida",
+      "sessao encerrada",
+      "nao esta autenticado",
+      "usuario nao autenticado",
+      "autenticacao necessaria",
+      "autenticacao requerida",
+      "faca login novamente",
+      "efetue o login",
+      "realize o login novamente",
+      "viewexpiredexception"
+    ];
+
+    if (expiredMarkers.some((marker) => text.includes(marker))) {
+      return true;
+    }
+
+    const hasPasswordInput = /<input\b[^>]*\btype=["']?password["']?[^>]*>/i.test(source);
+    const hasUserInput = /<input\b[^>]*(?:\bname|\bid)=["'][^"']*(?:usuario|username|login)[^"']*["'][^>]*>/i.test(source);
+    const hasLoginLanguage = text.includes("entrar") || text.includes("acessar") || text.includes("login");
+
+    return hasPasswordInput && (hasUserInput || hasLoginLanguage);
+  }
+
   function isLoginPage(html) {
-    const text = normalizeKey(stripTags(html));
-    return text.includes("usuario") && text.includes("senha") && text.includes("entrar");
+    return isAuthenticationPage(html, "", 200);
   }
 
   function buildFormPayload(html, formId, params) {
@@ -977,6 +1023,7 @@
     extractPortalCourses,
     extractVerNotasAction,
     extractViewState,
+    isAuthenticationPage,
     isLoginPage,
     normalizeText,
     parseGradesPage,

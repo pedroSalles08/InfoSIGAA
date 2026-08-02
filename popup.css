@@ -169,6 +169,16 @@ h1 {
   line-height: 1;
 }
 
+#refresh-button:disabled::before {
+  animation: refresh-icon-spin 0.8s linear infinite;
+}
+
+@keyframes refresh-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .status {
   margin: 0 0 var(--space-5);
   padding: 0;
@@ -181,6 +191,35 @@ h1 {
   border-radius: 0 var(--radius-control) var(--radius-control) 0;
   background: var(--warning-soft);
   color: #e9c88f;
+}
+
+.refresh-warning {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
+.refresh-warning p {
+  margin: 0;
+}
+
+.refresh-warning-message {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.refresh-warning-cache {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.status-action {
+  min-height: 30px;
+  margin-top: var(--space-1);
+  padding: 5px 10px;
+  border-color: rgb(230 173 85 / 45%);
+  background: rgb(230 173 85 / 12%);
+  color: #f2cf91;
 }
 
 .status-chips {

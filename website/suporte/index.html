@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Encontre soluções para problemas comuns do InfoSIGAA e entre em contato com o suporte.">
+    <meta name="theme-color" content="#171717">
+    <meta name="color-scheme" content="dark">
+    <title>Suporte — InfoSIGAA</title>
+    <link rel="icon" href="../assets/brand/favicon-light.svg" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="../assets/brand/favicon-dark.svg" media="(prefers-color-scheme: dark)">
+    <link rel="apple-touch-icon" href="../assets/brand/apple-touch-icon.png">
+    <link rel="stylesheet" href="../assets/css/site.css">
+    <script src="../assets/js/site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="../" aria-label="InfoSIGAA — página inicial"><img src="../assets/brand/logo-mark-white.svg" alt="" width="36" height="36"><span>InfoSIGAA</span></a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle><span class="nav-toggle-label">Menu</span><span class="nav-toggle-icon" aria-hidden="true"></span></button>
+        <nav class="site-nav" id="site-nav" aria-label="Navegação principal" data-site-nav><a href="../">Início</a><a href="../instalacao/">Instalação</a><a href="./" aria-current="page">Suporte</a><a href="../privacidade/">Privacidade</a><a class="nav-cta" href="../instalacao/">Instalar</a></nav>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <section class="page-hero" aria-labelledby="page-title">
+        <div class="container narrow-container"><p class="eyebrow">Suporte</p><h1 id="page-title">Soluções e orientações.</h1><p>Confira as verificações rápidas, consulte problemas comuns e perguntas frequentes ou entre em contato com o suporte.</p></div>
+      </section>
+
+      <div class="container page-layout">
+        <aside class="page-index" aria-label="Nesta página"><p>Nesta página</p><nav><a href="#verificacoes">Verificações rápidas</a><a href="#problemas">Problemas comuns</a><a href="#faq">Perguntas frequentes</a><a href="#contato">Contato</a></nav></aside>
+        <div class="prose">
+          <section id="verificacoes">
+            <p class="eyebrow">Primeiros passos</p><h2>Verificações rápidas</h2>
+            <div class="support-grid">
+              <article><span>01</span><h3>Confirme a sessão</h3><p>Abra o SIGAA, faça login e deixe o Portal do Discente ativo antes de atualizar.</p></article>
+              <article><span>02</span><h3>Recarregue a extensão</h3><p>Em <code>chrome://extensions</code>, clique em recarregar no cartão do InfoSIGAA.</p></article>
+              <article><span>03</span><h3>Tente novamente</h3><p>Volte ao portal, abra o painel e clique em “Atualizar” mais uma vez.</p></article>
+            </div>
+          </section>
+
+          <section id="problemas">
+            <p class="eyebrow">Diagnóstico</p><h2>Problemas comuns</h2>
+            <div class="issue-list">
+              <article><span class="badge warning">Sessão</span><div><h3>O painel pede para entrar no SIGAA</h3><p>Sua sessão pode ter expirado. Faça login novamente, abra o Portal do Discente e tente atualizar. O último painel válido deve continuar disponível.</p></div></article>
+              <article><span class="badge info">Página</span><div><h3>A extensão não encontra as matérias</h3><p>Confirme que a aba ativa pertence ao SIGAA do IFFarroupilha. O fluxo completo funciona melhor a partir do Portal do Discente.</p></div></article>
+              <article><span class="badge danger">Matéria</span><div><h3>Uma matéria aparece com erro</h3><p>O SIGAA pode ter retornado uma página inesperada apenas para aquela turma. As demais matérias devem continuar visíveis; tente atualizar novamente depois.</p></div></article>
+              <article><span class="badge info">Notas</span><div><h3>A matéria aparece como “Sem notas”</h3><p>Esse estado significa que nenhuma nota foi encontrada para a matéria. Ele não representa necessariamente uma falha da extensão.</p></div></article>
+            </div>
+          </section>
+
+          <section id="faq">
+            <p class="eyebrow">FAQ</p><h2>Perguntas frequentes</h2>
+            <div class="faq-list">
+              <details><summary>O InfoSIGAA guarda minha senha?<span aria-hidden="true"></span></summary><p>Não. O login é feito diretamente no SIGAA. A extensão usa a sessão já aberta no seu navegador.</p></details>
+              <details><summary>Minhas notas são enviadas para algum servidor?<span aria-hidden="true"></span></summary><p>Não. O InfoSIGAA não possui servidor externo para receber notas. O último resultado fica no armazenamento local da extensão no Chrome.</p></details>
+              <details><summary>A extensão atualiza sozinha em segundo plano?<span aria-hidden="true"></span></summary><p>Não. A atualização acontece quando você abre o painel e clica em “Atualizar”.</p></details>
+              <details><summary>Posso usar em outro computador?<span aria-hidden="true"></span></summary><p>Sim, instalando a extensão nesse computador. O histórico local não é sincronizado entre dispositivos ou perfis do Chrome.</p></details>
+              <details><summary>O InfoSIGAA funciona em qualquer instituição?<span aria-hidden="true"></span></summary><p>A versão atual foi desenvolvida para o SIGAA do IFFarroupilha e possui acesso limitado a esse endereço.</p></details>
+            </div>
+          </section>
+
+          <section id="contato" class="contact-panel">
+            <div><p class="eyebrow">Contato</p><h2>Ainda precisa de ajuda?</h2><p>Envie uma descrição do problema, o que você esperava ver e a mensagem mostrada no painel. Não envie senha, cookies, capturas com dados pessoais ou o HTML completo do SIGAA.</p></div>
+            <a class="button button-primary" href="mailto:infosigaa@protonmail.com?subject=Suporte%20InfoSIGAA">Enviar e-mail</a>
+            <p class="contact-address">infosigaa@protonmail.com</p>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid"><div class="footer-brand"><a class="brand" href="../"><img src="../assets/brand/logo-mark-white.svg" alt="" width="30" height="30"><span>InfoSIGAA</span></a><p>Notas e frequência do SIGAA em um painel local no navegador.</p></div><nav aria-label="Links do rodapé"><a href="../instalacao/">Instalação</a><a href="./">Suporte</a><a href="../privacidade/">Privacidade</a><a href="mailto:infosigaa@protonmail.com">infosigaa@protonmail.com</a></nav></div>
+      <div class="container footer-meta"><p>© <span data-current-year>2026</span> InfoSIGAA.</p><p>Projeto independente, sem vínculo oficial com o SIGAA ou o IFFarroupilha.</p></div>
+    </footer>
+  </body>
+</html>

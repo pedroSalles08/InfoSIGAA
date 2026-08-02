@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Veja como instalar manualmente o InfoSIGAA no Chrome e começar a acompanhar suas notas no SIGAA.">
+    <meta name="theme-color" content="#171717">
+    <meta name="color-scheme" content="dark">
+    <title>Instalação — InfoSIGAA</title>
+    <link rel="icon" href="../assets/brand/favicon-light.svg" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="../assets/brand/favicon-dark.svg" media="(prefers-color-scheme: dark)">
+    <link rel="apple-touch-icon" href="../assets/brand/apple-touch-icon.png">
+    <link rel="stylesheet" href="../assets/css/site.css">
+    <script src="../assets/js/site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="../" aria-label="InfoSIGAA — página inicial"><img src="../assets/brand/logo-mark-white.svg" alt="" width="36" height="36"><span>InfoSIGAA</span></a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle><span class="nav-toggle-label">Menu</span><span class="nav-toggle-icon" aria-hidden="true"></span></button>
+        <nav class="site-nav" id="site-nav" aria-label="Navegação principal" data-site-nav>
+          <a href="../">Início</a><a href="./" aria-current="page">Instalação</a><a href="../suporte/">Suporte</a><a href="../privacidade/">Privacidade</a><a class="nav-cta" href="#download">Download</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <section class="page-hero" aria-labelledby="page-title">
+        <div class="container narrow-container">
+          <p class="eyebrow">Guia de instalação</p>
+          <h1 id="page-title">Instale o InfoSIGAA no Chrome.</h1>
+          <p>Suporte oficial nesta fase: Google Chrome. Baixe o pacote preparado, extraia os arquivos e carregue a pasta pelo modo do desenvolvedor.</p>
+        </div>
+      </section>
+
+      <div class="container page-layout">
+        <aside class="page-index" aria-label="Nesta página">
+          <p>Nesta página</p>
+          <nav><a href="#download">Download</a><a href="#antes">Antes de começar</a><a href="#passos">Passo a passo</a><a href="#primeiro-uso">Primeiro uso</a><a href="#atualizar">Atualizar a extensão</a><a href="#navegadores">Outros navegadores</a></nav>
+        </aside>
+
+        <div class="prose">
+          <section id="download">
+            <p class="eyebrow">Versão atual</p>
+            <h2>Baixe o pacote oficial.</h2>
+            <div class="download-card" data-download-status="pending">
+              <div>
+                <strong>InfoSIGAA para Google Chrome</strong>
+                <span>Versão 0.1.0 · arquivo ZIP · instalação manual</span>
+              </div>
+              <span class="button button-disabled" aria-disabled="true">Aguardando primeira Release</span>
+            </div>
+            <div class="notice notice-info"><strong>Download ainda não publicado</strong><p>O pacote e o checksum já podem ser gerados de forma reproduzível, mas o repositório público do GitHub ainda não foi definido. Esta mensagem será substituída pelo link imutável do GitHub Release; nenhum arquivo de código-fonte genérico deve ser usado.</p></div>
+          </section>
+
+          <section id="antes">
+            <p class="eyebrow">Requisitos</p>
+            <h2>Antes de começar</h2>
+            <div class="check-grid">
+              <div><span aria-hidden="true">✓</span><p><strong>Google Chrome</strong> atualizado e acesso ao gerenciamento de extensões.</p></div>
+              <div><span aria-hidden="true">✓</span><p><strong>Pasta extraída</strong> do pacote oficial, com o arquivo <code>manifest.json</code> na raiz.</p></div>
+              <div><span aria-hidden="true">✓</span><p><strong>Acesso ao SIGAA</strong> do IFFarroupilha com sua conta institucional.</p></div>
+            </div>
+            <div class="notice notice-info"><strong>Escolha uma pasta permanente</strong><p>Extraia o ZIP para uma pasta estável, como <code>Documentos\InfoSIGAA</code>, e não a mova depois da instalação. No Chrome, selecione exatamente a pasta extraída que contém o <code>manifest.json</code>.</p></div>
+          </section>
+
+          <section id="passos">
+            <p class="eyebrow">Passo a passo</p>
+            <h2>Instale no Chrome</h2>
+            <ol class="installation-steps">
+              <li><span>1</span><div><h3>Abra a página de extensões</h3><p>Digite <code>chrome://extensions</code> na barra de endereços do Chrome e pressione Enter.</p></div></li>
+              <li><span>2</span><div><h3>Ative o modo do desenvolvedor</h3><p>Ligue a opção “Modo do desenvolvedor”, normalmente disponível no canto superior direito.</p></div></li>
+              <li><span>3</span><div><h3>Carregue a pasta extraída</h3><p>Clique em “Carregar sem compactação” e escolha a pasta permanente do InfoSIGAA, onde está o <code>manifest.json</code>.</p></div></li>
+              <li><span>4</span><div><h3>Fixe o InfoSIGAA</h3><p>Abra o menu de extensões do Chrome e fixe o InfoSIGAA para manter o ícone visível na barra.</p></div></li>
+            </ol>
+            <p class="source-note">Esse processo segue o método de instalação local documentado pelo <a href="https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked" rel="noopener noreferrer">Chrome for Developers</a>.</p>
+          </section>
+
+          <section id="primeiro-uso">
+            <p class="eyebrow">Depois de instalar</p>
+            <h2>Faça a primeira atualização</h2>
+            <ol class="plain-steps">
+              <li>Entre normalmente no SIGAA do IFFarroupilha.</li>
+              <li>Abra o Portal do Discente.</li>
+              <li>Clique no ícone do InfoSIGAA.</li>
+              <li>Selecione “Atualizar” e aguarde a leitura das matérias.</li>
+            </ol>
+            <div class="notice notice-ok"><strong>Sua senha não passa pela extensão</strong><p>O InfoSIGAA usa somente a sessão que já está aberta no navegador. Ele não faz login automático e não armazena credenciais.</p></div>
+          </section>
+
+          <section id="atualizar">
+            <p class="eyebrow">Novas versões</p>
+            <h2>Como atualizar a extensão</h2>
+            <p>Extensões instaladas dessa forma não recebem atualizações automáticas. Baixe a nova versão, extraia-a temporariamente e substitua os arquivos dentro da mesma pasta permanente usada na instalação. Depois, volte a <code>chrome://extensions</code> e clique no botão de recarregar do cartão do InfoSIGAA.</p>
+            <div class="notice notice-info"><strong>Não carregue uma pasta nova</strong><p>Sem uma identidade fixa no manifesto, carregar a extensão a partir de outro caminho pode criar outra instalação e outro armazenamento local. Manter o mesmo caminho reduz o risco de perder o vínculo com o painel salvo.</p></div>
+          </section>
+
+          <section id="navegadores">
+            <p class="eyebrow">Compatibilidade</p>
+            <h2>Outros navegadores ainda não são homologados.</h2>
+            <p>Microsoft Edge, Brave e Opera usam a arquitetura Chromium e podem aceitar o mesmo pacote, mas o fluxo completo do InfoSIGAA ainda não foi testado oficialmente neles. Mozilla Firefox não é compatível com o pacote atual e precisa de uma versão própria e assinada.</p>
+            <div class="notice notice-info"><strong>Suporte oficial</strong><p>Nesta fase, as instruções e o atendimento consideram somente o Google Chrome atualizado.</p></div>
+          </section>
+
+          <section class="inline-cta" aria-labelledby="installation-help-title">
+            <div><p class="eyebrow">Algo não funcionou?</p><h2 id="installation-help-title">Consulte o suporte.</h2><p>Veja verificações rápidas para sessão expirada, painel vazio e falhas em matérias específicas.</p></div>
+            <a class="button button-primary" href="../suporte/">Acessar suporte</a>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid"><div class="footer-brand"><a class="brand" href="../"><img src="../assets/brand/logo-mark-white.svg" alt="" width="30" height="30"><span>InfoSIGAA</span></a><p>Notas e frequência do SIGAA em um painel local no navegador.</p></div><nav aria-label="Links do rodapé"><a href="./">Instalação</a><a href="../suporte/">Suporte</a><a href="../privacidade/">Privacidade</a><a href="mailto:infosigaa@protonmail.com">infosigaa@protonmail.com</a></nav></div>
+      <div class="container footer-meta"><p>© <span data-current-year>2026</span> InfoSIGAA.</p><p>Projeto independente, sem vínculo oficial com o SIGAA ou o IFFarroupilha.</p></div>
+    </footer>
+  </body>
+</html>

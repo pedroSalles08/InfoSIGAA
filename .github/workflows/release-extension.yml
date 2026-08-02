@@ -1,0 +1,66 @@
+name: Publicar extensao InfoSIGAA
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag existente no formato vX.Y.Z"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obter repositorio
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Definir tag
+        id: release
+        shell: pwsh
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.tag }}" } else { "${{ github.ref_name }}" }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Tag invalida: $tag"
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Executar testes
+        shell: pwsh
+        run: |
+          $tests = @(
+            "tests/parser-smoke.js",
+            "tests/snapshot-smoke.js",
+            "tests/active-page-smoke.js",
+            "tests/session-expiry-smoke.js",
+            "tests/fixtures-privacy.js",
+            "tests/website-smoke.js",
+            "tests/package-smoke.js"
+          )
+          foreach ($test in $tests) {
+            node $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Empacotar extensao
+        shell: pwsh
+        run: ./scripts/package-extension.ps1 -ExpectedTag "${{ steps.release.outputs.tag }}"
+
+      - name: Publicar GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_TAG.TrimStart("v")
+          $archive = "dist/InfoSIGAA-Chrome-v$version.zip"
+          $checksum = "$archive.sha256"
+          gh release create $env:RELEASE_TAG $archive $checksum --verify-tag --generate-notes --title "InfoSIGAA $env:RELEASE_TAG"

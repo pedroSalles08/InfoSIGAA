@@ -4,6 +4,19 @@
   const BASE_URL = "https://sig.iffarroupilha.edu.br/sigaa/ava/index.jsf";
   const STORAGE_KEY = "sigaa-grade-monitor:data:v2";
   const MAX_COURSES = 30;
+  const SESSION_EXPIRED_CODE = "SIGAA_SESSION_EXPIRED";
+
+  class SigaaSessionExpiredError extends Error {
+    constructor() {
+      super("A sessão do SIGAA expirou.");
+      this.name = "SigaaSessionExpiredError";
+      this.code = SESSION_EXPIRED_CODE;
+    }
+  }
+
+  function isSessionExpiredError(error) {
+    return error?.code === SESSION_EXPIRED_CODE;
+  }
 
   function absoluteSigaaUrl(action) {
     return new URL(action || BASE_URL, BASE_URL).toString();
@@ -64,6 +77,10 @@
 
     const html = await response.text();
 
+    if (globalThis.SigaaParser.isAuthenticationPage(html, response.url, response.status)) {
+      throw new SigaaSessionExpiredError();
+    }
+
     if (!response.ok) {
       throw new Error(`SIGAA respondeu HTTP ${response.status}`);
     }
@@ -115,6 +132,34 @@
     });
   }
 
+  function getCachedData(previousData) {
+    return previousData?.ok && Array.isArray(previousData.courses) ? previousData : null;
+  }
+
+  function buildAuthenticationResult(previousData, attemptedAt) {
+    const cachedData = getCachedData(previousData);
+
+    return {
+      ok: false,
+      status: cachedData ? "session_expired" : "not_logged_in",
+      attemptedAt,
+      cachedData,
+      message: cachedData
+        ? "Sua sessão do SIGAA expirou. Faça login novamente para atualizar."
+        : "Entre no SIGAA no navegador para buscar suas notas."
+    };
+  }
+
+  function buildRefreshFailure(previousData, attemptedAt, status, message) {
+    return {
+      ok: false,
+      status,
+      attemptedAt,
+      cachedData: getCachedData(previousData),
+      message
+    };
+  }
+
   function getInitialCourses(parser, html) {
     const portalCourses = parser.extractPortalCourses(html);
 
@@ -135,164 +180,179 @@
     const parser = globalThis.SigaaParser;
     const previousData = await loadStoredGrades();
     const startedAt = new Date().toISOString();
-    const hasActiveSigaaPage =
-      activePage?.html &&
-      /^https:\/\/sig\.iffarroupilha\.edu\.br\/sigaa\//.test(activePage.url || "");
-    const activeHtml = hasActiveSigaaPage ? getActivePageHtml(activePage) : "";
-    const indexHtml = hasActiveSigaaPage ? activePage.html : await fetchHtml(BASE_URL);
 
-    if (parser.isLoginPage(indexHtml)) {
-      return {
-        ok: false,
-        status: "not_logged_in",
-        updatedAt: startedAt,
-        courses: [],
-        message: "Entre no SIGAA no navegador e tente atualizar novamente."
-      };
-    }
+    try {
+      const hasActiveSigaaPage =
+        activePage?.html &&
+        /^https:\/\/sig\.iffarroupilha\.edu\.br\/sigaa\//.test(activePage.url || "");
 
-    const activeGrades = hasActiveSigaaPage
-      ? parser.parseGradesPage(indexHtml, {
-          rawTitle: activePage.title || "Pagina atual"
-        })
-      : null;
-    const activeAttendance = hasActiveSigaaPage ? parser.extractAttendance(activeHtml || indexHtml) : null;
-    const activeCourse = hasActiveSigaaPage ? parser.extractCurrentCourse(activeHtml || indexHtml) : null;
+      if (hasActiveSigaaPage && parser.isAuthenticationPage(activePage.html, activePage.url, 200)) {
+        return buildAuthenticationResult(previousData, startedAt);
+      }
 
-    if (activeGrades?.tableFound && activeGrades.hasGrades) {
-      const updatedAt = new Date().toISOString();
-      const data = globalThis.SigaaSnapshot.mergeActiveCourse(
-        previousData,
-        {
-          ...activeGrades.course,
-          studentName: activeGrades.studentName,
-          enrollment: activeGrades.enrollment,
-          periods: activeGrades.periods,
-          summary: activeGrades.summary,
-          attendance: activeAttendance,
+      const authenticatedIndexHtml = await fetchHtml(BASE_URL);
+      const activeHtml = hasActiveSigaaPage ? getActivePageHtml(activePage) : "";
+      const indexHtml = hasActiveSigaaPage ? activePage.html : authenticatedIndexHtml;
+      const activeGrades = hasActiveSigaaPage
+        ? parser.parseGradesPage(indexHtml, {
+            rawTitle: activePage.title || "Pagina atual"
+          })
+        : null;
+      const activeAttendance = hasActiveSigaaPage ? parser.extractAttendance(activeHtml || indexHtml) : null;
+      const activeCourse = hasActiveSigaaPage ? parser.extractCurrentCourse(activeHtml || indexHtml) : null;
+
+      if (activeGrades?.tableFound && activeGrades.hasGrades) {
+        const updatedAt = new Date().toISOString();
+        const data = globalThis.SigaaSnapshot.mergeActiveCourse(
+          previousData,
+          {
+            ...activeGrades.course,
+            studentName: activeGrades.studentName,
+            enrollment: activeGrades.enrollment,
+            periods: activeGrades.periods,
+            summary: activeGrades.summary,
+            attendance: activeAttendance,
+            updatedAt
+          },
           updatedAt
-        },
-        updatedAt
-      );
-
-      await saveStoredGrades(data);
-      return data;
-    }
-
-    const initial = getInitialCourses(parser, indexHtml);
-    const initialCourses = initial.courses;
-
-    if (initialCourses.length === 0) {
-      return {
-        ok: false,
-        status: "no_courses",
-        updatedAt: startedAt,
-        courses: [],
-        message: "Nao encontrei a lista de materias. Abra o portal discente do SIGAA e clique em Atualizar."
-      };
-    }
-
-    const results = [];
-    let navigationHtml = indexHtml;
-
-    for (const initialCourse of initialCourses.slice(0, MAX_COURSES)) {
-      try {
-        const sourceHtml = initial.type === "portal" ? indexHtml : navigationHtml;
-        const freshCourses =
-          initial.type === "portal"
-            ? parser.extractPortalCourses(sourceHtml)
-            : parser.extractCourses(sourceHtml);
-        const course = freshCourses.find((item) => item.courseId === initialCourse.courseId) || initialCourse;
-
-        const courseHtml = await postJsf(sourceHtml, course.formId, course.params);
-
-        if (initial.type !== "portal") {
-          navigationHtml = courseHtml;
-        }
-
-        const attendance = mergeActiveAttendance(
-          course,
-          parser.extractAttendance(courseHtml),
-          activeAttendance,
-          activeCourse
         );
-        const verNotasAction = parser.extractVerNotasAction(courseHtml);
 
-        if (!verNotasAction) {
-          results.push({
-            ...course,
-            periods: [],
-            summary: {},
-            attendance,
-            error: "Nao encontrei a opcao Ver Notas nesta materia."
-          });
-          continue;
-        }
+        await saveStoredGrades(data);
+        return data;
+      }
 
-        const gradesHtml = await postJsf(courseHtml, verNotasAction.formId, verNotasAction.params);
-        const parsedGrades = parser.parseGradesPage(gradesHtml, course);
+      const initial = getInitialCourses(parser, indexHtml);
+      const initialCourses = initial.courses;
 
-        if (!parsedGrades.tableFound) {
-          results.push({
-            ...parsedGrades.course,
-            periods: [],
-            summary: {},
-            attendance,
-            noGrades: true,
-            noGradesReason: "missing_table",
-            message: "Ainda não há notas lançadas para esta matéria."
-          });
-          continue;
-        }
+      if (initialCourses.length === 0) {
+        return buildRefreshFailure(
+          previousData,
+          startedAt,
+          "refresh_failed",
+          "Nao encontrei a lista de materias. Abra o portal discente do SIGAA e tente novamente."
+        );
+      }
 
-        if (!parsedGrades.hasGrades) {
+      const results = [];
+      let navigationHtml = indexHtml;
+
+      for (const initialCourse of initialCourses.slice(0, MAX_COURSES)) {
+        try {
+          const sourceHtml = initial.type === "portal" ? indexHtml : navigationHtml;
+          const freshCourses =
+            initial.type === "portal"
+              ? parser.extractPortalCourses(sourceHtml)
+              : parser.extractCourses(sourceHtml);
+          const course = freshCourses.find((item) => item.courseId === initialCourse.courseId) || initialCourse;
+          const courseHtml = await postJsf(sourceHtml, course.formId, course.params);
+
+          if (initial.type !== "portal") {
+            navigationHtml = courseHtml;
+          }
+
+          const attendance = mergeActiveAttendance(
+            course,
+            parser.extractAttendance(courseHtml),
+            activeAttendance,
+            activeCourse
+          );
+          const verNotasAction = parser.extractVerNotasAction(courseHtml);
+
+          if (!verNotasAction) {
+            results.push({
+              ...course,
+              periods: [],
+              summary: {},
+              attendance,
+              error: "Nao encontrei a opcao Ver Notas nesta materia."
+            });
+            continue;
+          }
+
+          const gradesHtml = await postJsf(courseHtml, verNotasAction.formId, verNotasAction.params);
+          const parsedGrades = parser.parseGradesPage(gradesHtml, course);
+
+          if (!parsedGrades.tableFound) {
+            results.push({
+              ...parsedGrades.course,
+              periods: [],
+              summary: {},
+              attendance,
+              noGrades: true,
+              noGradesReason: "missing_table",
+              message: "Ainda não há notas lançadas para esta matéria."
+            });
+            continue;
+          }
+
+          if (!parsedGrades.hasGrades) {
+            results.push({
+              ...parsedGrades.course,
+              studentName: parsedGrades.studentName,
+              enrollment: parsedGrades.enrollment,
+              periods: [],
+              summary: {},
+              attendance,
+              noGrades: true,
+              noGradesReason: "empty_table",
+              message: "Ainda não há notas lançadas para esta matéria."
+            });
+            continue;
+          }
+
           results.push({
             ...parsedGrades.course,
             studentName: parsedGrades.studentName,
             enrollment: parsedGrades.enrollment,
+            periods: parsedGrades.periods,
+            summary: parsedGrades.summary,
+            attendance,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (error) {
+          if (isSessionExpiredError(error)) {
+            throw error;
+          }
+
+          results.push({
+            ...initialCourse,
             periods: [],
             summary: {},
-            attendance,
-            noGrades: true,
-            noGradesReason: "empty_table",
-            message: "Ainda não há notas lançadas para esta matéria."
+            error: error.message || "Falha ao buscar notas desta materia."
           });
-          continue;
         }
-
-        results.push({
-          ...parsedGrades.course,
-          studentName: parsedGrades.studentName,
-          enrollment: parsedGrades.enrollment,
-          periods: parsedGrades.periods,
-          summary: parsedGrades.summary,
-          attendance,
-          updatedAt: new Date().toISOString()
-        });
-      } catch (error) {
-        results.push({
-          ...initialCourse,
-          periods: [],
-          summary: {},
-          error: error.message || "Falha ao buscar notas desta materia."
-        });
       }
+
+      if (results.every((course) => course.error)) {
+        return buildRefreshFailure(
+          previousData,
+          startedAt,
+          "refresh_failed",
+          "Nao foi possivel atualizar nenhuma materia. Os ultimos dados validos foram preservados."
+        );
+      }
+
+      const data = globalThis.SigaaSnapshot.annotateChanges(
+        {
+          ok: true,
+          status: "ok",
+          updatedAt: new Date().toISOString(),
+          courses: results,
+          errors: results.filter((course) => course.error).length,
+          noGrades: results.filter((course) => course.noGrades).length
+        },
+        previousData
+      );
+
+      await saveStoredGrades(data);
+      return data;
+    } catch (error) {
+      if (isSessionExpiredError(error)) {
+        return buildAuthenticationResult(previousData, startedAt);
+      }
+
+      throw error;
     }
-
-    const data = globalThis.SigaaSnapshot.annotateChanges(
-      {
-        ok: true,
-        status: "ok",
-        updatedAt: new Date().toISOString(),
-        courses: results,
-        errors: results.filter((course) => course.error).length,
-        noGrades: results.filter((course) => course.noGrades).length
-      },
-      previousData
-    );
-
-    await saveStoredGrades(data);
-    return data;
   }
 
   globalThis.SigaaFetcher = {

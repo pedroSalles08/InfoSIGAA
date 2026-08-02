@@ -1,4 +1,4 @@
-# Monitor de Notas SIGAA
+# InfoSIGAA
 
 Extensao de navegador para uso pessoal que mostra as proprias notas do SIGAA em um painel local do navegador.
 
@@ -21,9 +21,9 @@ Extensao de navegador para uso pessoal que mostra as proprias notas do SIGAA em 
 - Nao roda verificacoes em segundo plano.
 - Nao mostra notificacoes do sistema operacional.
 
-## Como instalar localmente no Chrome ou Edge
+## Como instalar localmente no Chrome
 
-1. Abra `chrome://extensions` ou `edge://extensions`.
+1. Abra `chrome://extensions`.
 2. Ative o modo de desenvolvedor.
 3. Clique em "Carregar sem compactacao".
 4. Selecione esta pasta do projeto.
@@ -33,11 +33,25 @@ Extensao de navegador para uso pessoal que mostra as proprias notas do SIGAA em 
 7. Clique no icone da extensao.
 8. Clique em `Atualizar`.
 
+O Google Chrome é o único navegador oficialmente suportado nesta fase. Edge, Brave e Opera podem ser compatíveis por usarem Chromium, mas ainda precisam de homologação completa. O pacote atual não é compatível com Firefox.
+
+## Gerar o pacote de distribuição
+
+O script de empacotamento copia somente os arquivos usados pela extensão, cria um ZIP versionado e gera seu SHA-256:
+
+```powershell
+./scripts/package-extension.ps1 -ExpectedTag v0.1.0
+```
+
+Os artefatos são gravados em `dist/` e permanecem fora do Git. Para publicar uma nova versão, atualize `manifest.json`, execute os testes, crie a tag correspondente e deixe o workflow `release-extension.yml` criar a GitHub Release.
+
 ## Comportamento esperado
 
 O popup le a pagina ativa do portal discente, encontra as materias em `Turmas do Semestre` e usa a sessao ja logada para abrir a Turma Virtual de cada materia. Quando terminar, deve listar as materias e as notas encontradas.
 
 Se voce nao estiver logado, o popup deve orientar a entrar no SIGAA e tentar novamente.
+
+Se a sessao expirar, a tentativa de atualizacao e interrompida sem substituir o snapshot. O popup continua mostrando os ultimos dados validos, informa a data deles e oferece um botao para abrir o SIGAA e fazer login novamente.
 
 Se alguma materia falhar, a extensao mostra erro apenas naquela materia e mantem as demais.
 
@@ -59,6 +73,7 @@ Com Node.js instalado:
 node tests/parser-smoke.js
 node tests/snapshot-smoke.js
 node tests/active-page-smoke.js
+node tests/session-expiry-smoke.js
 node tests/fixtures-privacy.js
 ```
 

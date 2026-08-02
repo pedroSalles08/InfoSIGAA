@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Política de privacidade do site e da extensão InfoSIGAA.">
+    <meta name="theme-color" content="#171717">
+    <meta name="color-scheme" content="dark">
+    <title>Política de privacidade — InfoSIGAA</title>
+    <link rel="icon" href="../assets/brand/favicon-light.svg" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="../assets/brand/favicon-dark.svg" media="(prefers-color-scheme: dark)">
+    <link rel="apple-touch-icon" href="../assets/brand/apple-touch-icon.png">
+    <link rel="stylesheet" href="../assets/css/site.css">
+    <script src="../assets/js/site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="../" aria-label="InfoSIGAA — página inicial"><img src="../assets/brand/logo-mark-white.svg" alt="" width="36" height="36"><span>InfoSIGAA</span></a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle><span class="nav-toggle-label">Menu</span><span class="nav-toggle-icon" aria-hidden="true"></span></button>
+        <nav class="site-nav" id="site-nav" aria-label="Navegação principal" data-site-nav><a href="../">Início</a><a href="../instalacao/">Instalação</a><a href="../suporte/">Suporte</a><a href="./" aria-current="page">Privacidade</a><a class="nav-cta" href="../instalacao/">Instalar</a></nav>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <section class="page-hero" aria-labelledby="page-title">
+        <div class="container narrow-container"><p class="eyebrow">Privacidade</p><h1 id="page-title">Política de privacidade</h1><p>Esta política explica separadamente como o website e a extensão InfoSIGAA lidam com informações.</p><p class="updated-date">Última atualização: 1 de agosto de 2026</p></div>
+      </section>
+
+      <div class="container page-layout legal-layout">
+        <aside class="page-index" aria-label="Nesta política"><p>Nesta política</p><nav><a href="#resumo">Resumo</a><a href="#website">Website</a><a href="#extensao">Extensão</a><a href="#permissoes">Permissões</a><a href="#armazenamento">Armazenamento</a><a href="#contato">Contato</a></nav></aside>
+        <article class="prose legal-copy">
+          <section id="resumo">
+            <p class="eyebrow">Em poucas palavras</p><h2>Resumo</h2>
+            <div class="privacy-summary-grid">
+              <div><strong>Sem senha</strong><span>O InfoSIGAA não solicita nem armazena sua senha.</span></div>
+              <div><strong>Sem servidor de notas</strong><span>Suas notas não são enviadas para um servidor do projeto.</span></div>
+              <div><strong>Armazenamento local</strong><span>O último painel fica no perfil do Chrome em que a extensão foi usada.</span></div>
+            </div>
+          </section>
+
+          <section id="website">
+            <p class="eyebrow">01 · Website</p><h2>Dados no website</h2>
+            <p>O website do InfoSIGAA é estático. O projeto não utiliza formulários, contas, cookies próprios, analytics, pixels de rastreamento, fontes externas ou scripts de terceiros para coletar informações dos visitantes.</p>
+            <p>O website será hospedado pelo GitHub Pages. Como provedor de hospedagem, o GitHub pode processar dados técnicos de conexão, como endereço IP e registros de acesso, de acordo com seus próprios termos e política de privacidade. Esses registros não são recebidos nem usados pelo InfoSIGAA para criar perfis de visitantes.</p>
+          </section>
+
+          <section id="extensao">
+            <p class="eyebrow">02 · Extensão</p><h2>Como a extensão funciona</h2>
+            <p>A extensão funciona apenas quando você já está autenticado no SIGAA do IFFarroupilha. Ela usa a sessão existente no navegador para acessar as páginas necessárias, organizar matérias, notas e frequência e exibir essas informações no popup do InfoSIGAA.</p>
+            <ul>
+              <li>Não faz login automaticamente.</li>
+              <li>Não solicita, lê ou armazena sua senha.</li>
+              <li>Não salva cookies manualmente.</li>
+              <li>Não envia notas, frequência ou identificação do estudante para servidor externo do projeto.</li>
+              <li>Não executa verificações automáticas em segundo plano.</li>
+            </ul>
+          </section>
+
+          <section id="permissoes">
+            <p class="eyebrow">03 · Extensão</p><h2>Permissões utilizadas</h2>
+            <div class="permission-list">
+              <div><code>activeTab</code><p>Permite interagir com a aba ativa quando você inicia uma atualização.</p></div>
+              <div><code>scripting</code><p>Permite ler o conteúdo necessário da página ativa do SIGAA para iniciar a coleta.</p></div>
+              <div><code>storage</code><p>Permite manter localmente o último painel válido e comparar alterações entre atualizações.</p></div>
+              <div><code>sig.iffarroupilha.edu.br</code><p>Limita o acesso de rede da extensão às páginas do SIGAA do IFFarroupilha.</p></div>
+            </div>
+          </section>
+
+          <section id="armazenamento">
+            <p class="eyebrow">04 · Extensão</p><h2>Armazenamento e controle</h2>
+            <p>O último resultado válido é armazenado em <code>chrome.storage.local</code>, dentro do perfil do Chrome. Esse conteúdo não é sincronizado entre computadores ou perfis e normalmente é removido quando a extensão é desinstalada.</p>
+            <p>Em um computador compartilhado, outra pessoa com acesso ao mesmo perfil do Chrome pode abrir o popup e visualizar o último painel salvo. Use um perfil individual e remova a extensão quando não quiser manter esses dados no dispositivo.</p>
+            <p>Quando uma sessão expira ou uma atualização falha por completo, o InfoSIGAA preserva o último resultado válido em vez de substituí-lo por dados incompletos.</p>
+          </section>
+
+          <section id="alteracoes">
+            <p class="eyebrow">05 · Política</p><h2>Alterações nesta política</h2>
+            <p>Esta política poderá ser atualizada quando o comportamento do website, da extensão ou de sua distribuição mudar. A data da revisão mais recente será mantida no início desta página.</p>
+          </section>
+
+          <section id="contato" class="contact-panel">
+            <div><p class="eyebrow">Contato</p><h2>Dúvidas sobre privacidade</h2><p>Para esclarecer dúvidas sobre esta política ou sobre o funcionamento do InfoSIGAA, escreva para o endereço abaixo.</p></div>
+            <a class="button button-primary" href="mailto:infosigaa@protonmail.com?subject=Privacidade%20InfoSIGAA">Enviar e-mail</a>
+            <p class="contact-address">infosigaa@protonmail.com</p>
+          </section>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid"><div class="footer-brand"><a class="brand" href="../"><img src="../assets/brand/logo-mark-white.svg" alt="" width="30" height="30"><span>InfoSIGAA</span></a><p>Notas e frequência do SIGAA em um painel local no navegador.</p></div><nav aria-label="Links do rodapé"><a href="../instalacao/">Instalação</a><a href="../suporte/">Suporte</a><a href="./">Privacidade</a><a href="mailto:infosigaa@protonmail.com">infosigaa@protonmail.com</a></nav></div>
+      <div class="container footer-meta"><p>© <span data-current-year>2026</span> InfoSIGAA.</p><p>Projeto independente, sem vínculo oficial com o SIGAA ou o IFFarroupilha.</p></div>
+    </footer>
+  </body>
+</html>

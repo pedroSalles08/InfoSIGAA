@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "sigaa-grade-monitor:data:v2";
+  const PORTAL_URL = "https://sig.iffarroupilha.edu.br/sigaa/portais/discente/discente.jsf";
 
   const elements = {
     refreshButton: document.getElementById("refresh-button"),
@@ -20,15 +21,20 @@
   const expandedCourseIds = new Set();
   const initializedCourseIds = new Set();
 
-  function formatDate(isoDate) {
+  function formatDateValue(isoDate) {
     if (!isoDate) {
-      return "Nenhuma atualizacao ainda";
+      return "";
     }
 
-    return `Atualizado em ${new Intl.DateTimeFormat("pt-BR", {
+    return new Intl.DateTimeFormat("pt-BR", {
       dateStyle: "short",
       timeStyle: "short"
-    }).format(new Date(isoDate))}`;
+    }).format(new Date(isoDate));
+  }
+
+  function formatDate(isoDate) {
+    const value = formatDateValue(isoDate);
+    return value ? `Atualizado em ${value}` : "Nenhuma atualizacao ainda";
   }
 
   function setStatus(message, variant) {
@@ -904,6 +910,60 @@
     });
   }
 
+  async function openSigaaPortal() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    if (!Number.isInteger(tab?.id)) {
+      throw new Error("Nao foi possivel localizar a aba atual.");
+    }
+
+    await chrome.tabs.update(tab.id, { url: PORTAL_URL });
+  }
+
+  function renderRefreshFailure(result) {
+    const cachedData = result?.cachedData?.ok ? result.cachedData : null;
+    renderData(cachedData);
+
+    const content = createElement("div", "refresh-warning");
+    content.appendChild(createElement("p", "refresh-warning-message", result?.message || "Nao foi possivel atualizar as notas."));
+
+    if (cachedData?.updatedAt) {
+      content.appendChild(
+        createElement(
+          "p",
+          "refresh-warning-cache",
+          `Exibindo dados salvos de ${formatDateValue(cachedData.updatedAt)}.`
+        )
+      );
+    }
+
+    const loginButton = createElement("button", "status-action", "Abrir SIGAA");
+    loginButton.type = "button";
+    loginButton.addEventListener("click", () => {
+      loginButton.disabled = true;
+      openSigaaPortal().catch((error) => {
+        loginButton.disabled = false;
+        setStatus(error.message || "Nao foi possivel abrir o SIGAA.", "warning");
+      });
+    });
+    content.appendChild(loginButton);
+    setStatusContent(content, "warning");
+  }
+
+  function renderRefreshResult(data) {
+    if (data?.ok) {
+      renderData(data);
+      return;
+    }
+
+    if (["session_expired", "not_logged_in", "refresh_failed"].includes(data?.status)) {
+      renderRefreshFailure(data);
+      return;
+    }
+
+    renderData(data);
+  }
+
   async function getActiveSigaaPage() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
@@ -954,7 +1014,7 @@
           return;
         }
 
-        renderData(response.data);
+        renderRefreshResult(response.data);
       })
       .catch((error) => {
         elements.refreshButton.disabled = false;

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="InfoSIGAA organiza notas, mudanças recentes e frequência do SIGAA em um painel local no Chrome.">
+    <meta name="theme-color" content="#171717">
+    <meta name="color-scheme" content="dark">
+    <title>InfoSIGAA — Suas notas do SIGAA em um painel claro</title>
+    <link rel="icon" href="assets/brand/favicon-light.svg" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="assets/brand/favicon-dark.svg" media="(prefers-color-scheme: dark)">
+    <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
+    <link rel="stylesheet" href="assets/css/site.css">
+    <script src="assets/js/site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="./" aria-label="InfoSIGAA — página inicial">
+          <img src="assets/brand/logo-mark-white.svg" alt="" width="36" height="36">
+          <span>InfoSIGAA</span>
+        </a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle>
+          <span class="nav-toggle-label">Menu</span>
+          <span class="nav-toggle-icon" aria-hidden="true"></span>
+        </button>
+        <nav class="site-nav" id="site-nav" aria-label="Navegação principal" data-site-nav>
+          <a href="./" aria-current="page">Início</a>
+          <a href="instalacao/">Instalação</a>
+          <a href="suporte/">Suporte</a>
+          <a href="privacidade/">Privacidade</a>
+          <a class="nav-cta" href="instalacao/">Instalar</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span class="status-dot ok" aria-hidden="true"></span> Extensão para Chrome · IFFarroupilha</p>
+            <h1 id="hero-title">Suas notas do SIGAA, organizadas.</h1>
+            <p class="hero-lead">Acompanhe notas, mudanças recentes, faltas e frequência diretamente no navegador, usando sua sessão atual do SIGAA.</p>
+            <div class="button-row">
+              <a class="button button-primary" href="instalacao/">
+                Ver instalação
+                <span aria-hidden="true">→</span>
+              </a>
+              <a class="button button-secondary" href="#como-funciona">Como funciona</a>
+            </div>
+            <ul class="trust-list" aria-label="Destaques de privacidade">
+              <li>Sem login automático</li>
+              <li>Dados no navegador</li>
+              <li>Sem servidor externo</li>
+            </ul>
+          </div>
+
+          <div class="product-preview" aria-label="Prévia ilustrativa do painel InfoSIGAA">
+            <div class="preview-toolbar">
+              <div>
+                <p class="preview-title">InfoSIGAA</p>
+                <p class="preview-muted">Atualizado agora</p>
+              </div>
+              <span class="preview-button" aria-hidden="true">↻ Atualizar</span>
+            </div>
+            <div class="preview-status" aria-label="Resumo ilustrativo">
+              <span><i class="status-dot ok"></i><strong>6</strong> com notas</span>
+              <span><i class="status-dot info"></i><strong>1</strong> sem notas</span>
+              <span><i class="status-dot warning"></i><strong>1</strong> com mudança</span>
+            </div>
+            <article class="preview-course">
+              <header class="preview-course-header">
+                <div>
+                  <h2>Física II</h2>
+                  <p>2026.1</p>
+                </div>
+                <span class="badge changed">Alterada</span>
+              </header>
+              <div class="preview-course-body">
+                <div class="preview-stats">
+                  <span><small>Média</small><strong class="ok-text">8,4</strong></span>
+                  <span><small>Faltas</small><strong>2</strong></span>
+                  <span><small>Sit.</small><strong>Aprovado</strong></span>
+                </div>
+                <div class="preview-attendance">
+                  <div><span>Presença 93,8%</span><span>32/80 aulas</span></div>
+                  <div class="attendance-bar"><span style="width: 93.8%"></span></div>
+                  <small>Carga ministrada 40%</small>
+                </div>
+                <p class="preview-label">1º sem.</p>
+                <div class="preview-grades">
+                  <span><small>N1</small><strong>8,0</strong></span>
+                  <span class="changed"><small>N2</small><strong>8,8</strong><em>Alterada</em></span>
+                  <span><small>TR</small><strong>9,0</strong></span>
+                </div>
+              </div>
+            </article>
+            <article class="preview-course compact-course">
+              <header class="preview-course-header">
+                <div>
+                  <h2>Cálculo I</h2>
+                  <p>2026.1</p>
+                </div>
+                <span class="badge ok">OK</span>
+              </header>
+            </article>
+            <p class="preview-disclaimer">Demonstração com dados fictícios</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="beneficios-title">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">Visão rápida</p>
+            <h2 id="beneficios-title">Acompanhe tudo de forma simples.</h2>
+            <p>Notas, médias, faltas, frequência e mudanças recentes reunidas em um único painel.</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <span class="feature-index">01</span>
+              <h3>Visão completa</h3>
+              <p>Notas, médias, faltas e frequência organizadas por matéria, com leitura rápida e detalhes quando necessário.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-index warning-text">02</span>
+              <h3>Mudanças em destaque</h3>
+              <p>Notas novas, alteradas ou removidas recebem um destaque discreto para facilitar a identificação.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-index ok-text">03</span>
+              <h3>Seus dados no navegador</h3>
+              <p>A extensão não solicita sua senha nem envia suas notas para servidores externos. As informações permanecem no navegador.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-muted" id="como-funciona" aria-labelledby="funcionamento-title">
+        <div class="container split-heading">
+          <div class="section-heading">
+            <p class="eyebrow">Como funciona</p>
+            <h2 id="funcionamento-title">Entre, atualize e acompanhe.</h2>
+            <p>Entre normalmente no SIGAA, atualize a extensão e acompanhe suas informações em um painel organizado.</p>
+          </div>
+          <ol class="steps-list">
+            <li>
+              <span>1</span>
+              <div><h3>Acesse o SIGAA</h3><p>Entre normalmente e abra o Portal do Discente.</p></div>
+            </li>
+            <li>
+              <span>2</span>
+              <div><h3>Atualize o InfoSIGAA</h3><p>Abra a extensão e clique em ‘Atualizar’ para carregar suas informações.</p></div>
+            </li>
+            <li>
+              <span>3</span>
+              <div><h3>Acompanhe suas matérias</h3><p>Consulte notas, médias, faltas, frequência e alterações recentes em um só lugar.</p></div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="privacidade-resumo-title">
+        <div class="container privacy-panel">
+          <div>
+            <p class="eyebrow"><span class="status-dot ok" aria-hidden="true"></span> Privacidade por padrão</p>
+            <h2 id="privacidade-resumo-title">Suas notas continuam suas.</h2>
+            <p>O InfoSIGAA funciona com a sessão já aberta no navegador. Não faz login automático, não armazena senha e não mantém uma cópia das suas notas fora do Chrome.</p>
+          </div>
+          <a class="button button-secondary" href="privacidade/">Ler política de privacidade</a>
+        </div>
+      </section>
+
+      <section class="section section-compact" aria-label="Próximos passos">
+        <div class="container action-grid">
+          <article class="action-card">
+            <p class="eyebrow">Começar</p>
+            <h2>Instale em poucos passos.</h2>
+            <p>Veja como carregar a extensão manualmente no Chrome e conferir se tudo está pronto.</p>
+            <a class="text-link" href="instalacao/">Ver instruções <span aria-hidden="true">→</span></a>
+          </article>
+          <article class="action-card">
+            <p class="eyebrow">Precisa de ajuda?</p>
+            <h2>Encontre uma solução.</h2>
+            <p>Consulte os problemas mais comuns ou fale diretamente com o suporte do InfoSIGAA.</p>
+            <a class="text-link" href="suporte/">Acessar suporte <span aria-hidden="true">→</span></a>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div class="footer-brand">
+          <a class="brand" href="./"><img src="assets/brand/logo-mark-white.svg" alt="" width="30" height="30"><span>InfoSIGAA</span></a>
+          <p>Notas e frequência do SIGAA em um painel local no navegador.</p>
+        </div>
+        <nav aria-label="Links do rodapé">
+          <a href="instalacao/">Instalação</a>
+          <a href="suporte/">Suporte</a>
+          <a href="privacidade/">Privacidade</a>
+          <a href="mailto:infosigaa@protonmail.com">infosigaa@protonmail.com</a>
+        </nav>
+      </div>
+      <div class="container footer-meta">
+        <p>© <span data-current-year>2026</span> InfoSIGAA.</p>
+        <p>Projeto independente, sem vínculo oficial com o SIGAA ou o IFFarroupilha.</p>
+      </div>
+    </footer>
+  </body>
+</html>

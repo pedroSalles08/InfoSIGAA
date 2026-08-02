@@ -55,6 +55,15 @@ require("../src/snapshot.js");
 require("../src/sigaa-fetcher.js");
 
 const gradesHtml = fs.readFileSync("fixtures/ver-notas-fisica.html", "utf8");
+const authenticatedHtml = fs.readFileSync("fixtures/turma-virtual-fisica.html", "utf8");
+
+global.fetch = async () => ({
+  ok: true,
+  status: 200,
+  redirected: false,
+  url: "https://sig.iffarroupilha.edu.br/sigaa/ava/index.jsf",
+  text: async () => authenticatedHtml
+});
 
 globalThis.SigaaFetcher.refreshAllGrades({
   url: "https://sig.iffarroupilha.edu.br/sigaa/ava/notas.jsf",
