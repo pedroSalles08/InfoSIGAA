@@ -1055,17 +1055,14 @@ code {
 }
 
 .check-grid span {
-  display: inline-flex;
-  width: 23px;
+  display: inline-block;
   height: 23px;
-  align-items: center;
-  justify-content: center;
   margin-bottom: var(--space-4);
-  border: 1px solid rgb(111 207 151 / 32%);
-  border-radius: var(--radius-xs);
-  color: var(--ok);
+  color: #a8a8a8;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 23px;
 }
 
 .check-grid p {
@@ -1099,9 +1096,10 @@ code {
   font-size: 0.88rem;
 }
 
-.notice-ok {
-  border-left-color: var(--ok);
-  background: var(--ok-soft);
+.notice-neutral {
+  border: 1px solid #343434;
+  border-left: 2px solid #a8a8a8;
+  background: #202020;
 }
 
 .download-card {
@@ -1127,6 +1125,19 @@ code {
 .download-card span:not(.button) {
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.download-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  color: var(--muted-soft) !important;
+  font-size: 0.78rem;
+}
+
+.prose .download-links a {
+  color: inherit;
 }
 
 .installation-steps,

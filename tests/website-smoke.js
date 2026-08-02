@@ -96,12 +96,21 @@ assert.match(home, />\s*Ver instalação\s*</, "A página inicial deve levar pri
 assert.match(installation, /chrome:\/\/extensions/, "A instalação deve indicar a página de extensões.");
 assert.match(installation, /Carregar sem compactação/, "A instalação deve explicar o carregamento local.");
 assert.match(installation, new RegExp(`Versão ${manifest.version.replace(/\./g, "\\.")}`), "A versão exibida deve corresponder ao manifest.json.");
-assert.match(installation, /Suporte oficial nesta fase: Google Chrome/, "O navegador oficialmente suportado deve ficar explícito.");
+assert.match(installation, /Compatibilidade atual: Google Chrome/, "A compatibilidade atual deve ficar explícita.");
 assert.match(installation, /não recebem atualizações automáticas/i, "A instalação deve explicar que atualizações são manuais.");
 assert.match(installation, /pasta permanente/i, "A instalação deve orientar a manter um caminho estável.");
+assert.match(installation, /Requisitos de instalação/, "A seção deve identificar os requisitos de instalação.");
+assert.match(installation, /O que você precisa para instalar/, "O título da seção de requisitos deve ser claro.");
+assert.match(installation, /<span aria-hidden="true">01<\/span>[\s\S]*<span aria-hidden="true">02<\/span>[\s\S]*<span aria-hidden="true">03<\/span>/, "Os requisitos devem usar marcadores numéricos sequenciais.");
+assert.doesNotMatch(installation, /<span aria-hidden="true">✓<\/span>/, "Os requisitos não devem parecer previamente validados.");
+assert.match(installation, /<section id="primeiro-uso">[\s\S]*Primeiro uso[\s\S]*Atualize a extensão pela primeira vez/, "A seção de primeiro uso deve ter títulos claros.");
+assert.match(installation, /notice notice-neutral[^>]*><strong>A extensão não recebe sua senha<\/strong>/, "O aviso sobre senha deve usar apresentação neutra.");
+assert.doesNotMatch(installation, /Sua senha não passa pela extensão|notice notice-ok/, "O aviso sobre senha não deve parecer uma confirmação de sucesso.");
 assert.match(installation, /Edge, Brave e Opera/, "A instalação deve diferenciar compatibilidade provável de suporte oficial.");
 assert.match(installation, /Firefox não é compatível com o pacote atual/, "A limitação atual do Firefox deve ficar explícita.");
 assert.doesNotMatch(installation, /Não selecione a pasta <code>website<\/code>/, "O usuário não deve receber instruções baseadas no repositório completo.");
+assert.doesNotMatch(installation, /Baixe somente o pacote preparado|Source code|asset versionado|Release oficial/, "O guia não deve destacar termos técnicos de distribuição.");
+assert.match(installation, />Notas da versão<\/a><span aria-hidden="true">·<\/span><a [^>]+>Verificar integridade<\/a>/, "Os links técnicos devem permanecer em uma linha discreta.");
 
 const releaseAssetPattern = new RegExp(
   `href="https://github\\.com/[^/]+/[^/]+/releases/download/v${manifest.version.replace(/\./g, "\\.")}/InfoSIGAA-Chrome-v${manifest.version.replace(/\./g, "\\.")}\\.zip"`
