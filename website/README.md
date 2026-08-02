@@ -24,15 +24,15 @@ Abra `http://localhost:8080/` no navegador. Não é necessário instalar pacotes
 
 ## Download da extensão
 
-A página inicial leva ao guia de instalação; somente o guia deve iniciar um download. Enquanto a primeira GitHub Release não existir, a página mostra explicitamente que o download está pendente.
+A página inicial leva ao guia de instalação; somente o guia inicia o download. A versão atual aponta diretamente para o asset preparado da GitHub Release, nunca para os arquivos automáticos “Source code”.
 
-Depois de publicar uma Release, substitua o estado pendente em `instalacao/index.html` por um link direto e imutável neste formato:
+Ao publicar uma nova Release, atualize a versão, o link do ZIP, o checksum e as notas da versão em `instalacao/index.html` usando URLs imutáveis neste formato:
 
 ```text
 https://github.com/OWNER/REPOSITORY/releases/download/vX.Y.Z/InfoSIGAA-Chrome-vX.Y.Z.zip
 ```
 
-A versão mostrada na página deve ser igual à versão de `manifest.json`. Não use os arquivos automáticos “Source code” da Release.
+A versão mostrada na página deve ser igual à versão de `manifest.json`. O teste aceita um estado pendente somente antes de a primeira Release existir.
 
 ## Verificar
 
