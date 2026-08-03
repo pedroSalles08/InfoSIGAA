@@ -35,8 +35,7 @@ const requiredAssets = [
   path.join("assets", "css", "site.css"),
   path.join("assets", "js", "site.js"),
   path.join("assets", "brand", "logo-mark-white.svg"),
-  path.join("assets", "brand", "favicon-light.svg"),
-  path.join("assets", "brand", "favicon-dark.svg"),
+  path.join("assets", "brand", "favicon.svg"),
   path.join("assets", "brand", "apple-touch-icon.png"),
   ".nojekyll",
   "README.md"
@@ -46,6 +45,13 @@ requiredAssets.forEach((asset) => {
   assert.ok(fs.existsSync(path.join(websiteRoot, asset)), `${asset} deve existir.`);
 });
 
+[
+  path.join("assets", "brand", "favicon-light.svg"),
+  path.join("assets", "brand", "favicon-dark.svg")
+].forEach((legacyFavicon) => {
+  assert.ok(!fs.existsSync(path.join(websiteRoot, legacyFavicon)), `${legacyFavicon} não deve permanecer após a consolidação.`);
+});
+
 pages.forEach(({ name, file }) => {
   const html = read(file);
 
@@ -53,6 +59,10 @@ pages.forEach(({ name, file }) => {
   assert.match(html, /<meta name="viewport"/, `${name}: viewport ausente.`);
   assert.match(html, /<meta name="description"/, `${name}: descrição ausente.`);
   assert.match(html, /<title>[^<]+<\/title>/, `${name}: título ausente.`);
+  assert.strictEqual((html.match(/<link rel="icon"/g) || []).length, 1, `${name}: deve declarar somente um favicon.`);
+  assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="[^\"]*favicon\.svg\?v=3">/, `${name}: favicon SVG adaptável ausente.`);
+  assert.doesNotMatch(html, /<link rel="icon"[^>]+media=/, `${name}: a seleção de tema deve ocorrer dentro do SVG.`);
+  assert.doesNotMatch(html, /favicon-(?:light|dark)\.svg/, `${name}: variantes antigas de favicon não devem ser referenciadas.`);
   assert.match(html, /<header class="site-header">/, `${name}: cabeçalho ausente.`);
   assert.match(html, /<main id="conteudo">/, `${name}: conteúdo principal ausente.`);
   assert.match(html, /<footer class="site-footer">/, `${name}: rodapé ausente.`);
@@ -89,6 +99,12 @@ const support = read(path.join("suporte", "index.html"));
 const privacy = read(path.join("privacidade", "index.html"));
 const css = read(path.join("assets", "css", "site.css"));
 const script = read(path.join("assets", "js", "site.js"));
+const favicon = read(path.join("assets", "brand", "favicon.svg"));
+
+assert.match(favicon, /:root\s*\{\s*fill:\s*#000000;/, "O favicon deve usar símbolo preto por padrão.");
+assert.match(favicon, /@media\s*\(prefers-color-scheme:\s*dark\)[\s\S]*fill:\s*#ffffff;/, "O favicon deve usar símbolo branco no tema escuro.");
+assert.match(favicon, /fill="inherit"/, "A marca deve herdar a cor adaptável do SVG.");
+assert.doesNotMatch(favicon, /<rect\b/i, "O favicon deve permanecer com fundo transparente.");
 
 assert.match(home, /Demonstração com dados fictícios/, "A prévia deve declarar que usa dados fictícios.");
 assert.doesNotMatch(home, /data-chrome-download/, "A página inicial não deve apresentar um download indireto como se fosse imediato.");
