@@ -123,7 +123,7 @@
     removeExistingNotice(documentRef);
 
     const notice = createBaseNotice(documentRef, "info");
-    appendTitle(documentRef, notice, "Monitor de Notas SIGAA");
+    appendTitle(documentRef, notice, "InfoSIGAA");
     appendText(
       documentRef,
       notice,
@@ -136,7 +136,7 @@
     removeExistingNotice(documentRef);
 
     const notice = createBaseNotice(documentRef, "warning");
-    appendTitle(documentRef, notice, "Monitor de Notas SIGAA");
+    appendTitle(documentRef, notice, "InfoSIGAA");
     appendText(documentRef, notice, "Nao encontrei uma tabela de notas nesta pagina.");
     insertNotice(documentRef, notice);
   }

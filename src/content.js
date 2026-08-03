@@ -7,7 +7,7 @@
   const notice = globalThis.SigaaGradeNotice;
 
   if (!parser || !storage || !diff || !notice) {
-    console.warn("[Monitor de Notas SIGAA] Modulos da extensao nao foram carregados.");
+    console.warn("[InfoSIGAA] Modulos da extensao nao foram carregados.");
     return;
   }
 

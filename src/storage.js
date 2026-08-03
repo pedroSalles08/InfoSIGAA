@@ -28,7 +28,7 @@
       storage.get([key], (result) => {
         if (chrome.runtime && chrome.runtime.lastError) {
           console.warn(
-            "[Monitor de Notas SIGAA] Falha ao ler snapshot:",
+            "[InfoSIGAA] Falha ao ler snapshot:",
             chrome.runtime.lastError.message
           );
           resolve(null);
@@ -51,7 +51,7 @@
       storage.set({ [key]: snapshot }, () => {
         if (chrome.runtime && chrome.runtime.lastError) {
           console.warn(
-            "[Monitor de Notas SIGAA] Falha ao salvar snapshot:",
+            "[InfoSIGAA] Falha ao salvar snapshot:",
             chrome.runtime.lastError.message
           );
           resolve(false);
