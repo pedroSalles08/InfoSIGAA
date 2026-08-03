@@ -1,4 +1,4 @@
-# Contexto do Projeto: Monitor de Notas SIGAA
+# Contexto do Projeto: InfoSIGAA
 
 ## Objetivo
 
@@ -57,6 +57,8 @@ Arquivos principais ativos:
   - Navega pelo SIGAA usando `fetch` com `credentials: "include"`.
   - Entra nas materias e aciona a opcao `Ver Notas`.
   - Usa a sessao ja logada do usuario.
+  - Valida a autenticacao antes da coleta e em cada resposta do SIGAA.
+  - Interrompe a atualizacao sem gravar quando a sessao expira.
   - Usa `SigaaSnapshot` para comparar e mesclar resultados.
   - Salva o snapshot atual em `chrome.storage.local`.
 
@@ -76,6 +78,9 @@ Arquivos principais ativos:
 
 - `tests/active-page-smoke.js`
   - Testa o fluxo real do fetcher ao atualizar diretamente uma pagina de notas.
+
+- `tests/session-expiry-smoke.js`
+  - Testa sessao expirada antes e durante a coleta e garante que o snapshot valido nao seja substituido.
 
 - `tests/fixtures-privacy.js`
   - Impede que capturas integrais e indicadores comuns de dados pessoais entrem nas fixtures publicas.
@@ -168,6 +173,8 @@ Deteccao:
 - Materias alteradas aparecem no topo.
 - O destaque dura ate a proxima atualizacao bem-sucedida daquela materia.
 - Ao atualizar diretamente uma pagina de notas, somente a materia correspondente e substituida; as demais permanecem no snapshot.
+- Sessao expirada ou falha total nao substitui o ultimo snapshot valido.
+- Quando a sessao expira, o popup mantem os cards salvos, informa a data da ultima atualizacao valida e oferece acesso ao portal para novo login.
 
 ### Frequencia
 
@@ -256,6 +263,7 @@ Rodar os testes:
 node tests\parser-smoke.js
 node tests\snapshot-smoke.js
 node tests\active-page-smoke.js
+node tests\session-expiry-smoke.js
 node tests\fixtures-privacy.js
 ```
 
