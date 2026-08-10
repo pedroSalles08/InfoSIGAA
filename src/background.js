@@ -1,11 +1,18 @@
-importScripts("sigaa-parser.js", "snapshot.js", "sigaa-fetcher.js");
+importScripts("privacy-storage.js", "sigaa-parser.js", "snapshot.js", "sigaa-fetcher.js");
+
+globalThis.InfoSigaaPrivacyStorage.restrictStorageAccess();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || message.type !== "refreshGrades") {
     return false;
   }
 
-  globalThis.SigaaFetcher.refreshAllGrades(message.activePage || null)
+  globalThis.InfoSigaaPrivacyStorage.getContext({
+    incognito: Boolean(message.activePage?.incognito)
+  })
+    .then((privacyContext) =>
+      globalThis.SigaaFetcher.refreshAllGrades(message.activePage || null, privacyContext)
+    )
     .then((data) => {
       sendResponse({ ok: true, data });
     })

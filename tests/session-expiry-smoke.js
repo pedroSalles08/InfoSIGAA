@@ -1,7 +1,7 @@
 const fs = require("fs");
 const assert = require("assert");
 
-const storageKey = "sigaa-grade-monitor:data:v2";
+const storageKey = "sigaa-grade-monitor:data:v3";
 const portalHtml = fs.readFileSync("fixtures/portal-discente.html", "utf8");
 const authenticatedHtml = fs.readFileSync("fixtures/turma-virtual-fisica.html", "utf8");
 const loginHtml = `
@@ -21,12 +21,15 @@ const previousData = {
   ok: true,
   status: "ok",
   updatedAt: "2026-07-31T10:00:00.000Z",
+  owner: { enrollment: "0000000000", studentName: "ALUNO TESTE" },
   courses: [
     {
       courseId: "TEST_TURMA_1",
       code: "99990001",
       name: "FÍSICA",
       year: "2026",
+      enrollment: "0000000000",
+      studentName: "ALUNO TESTE",
       periods: [{ name: "1º Semestre", grades: [{ label: "FE", value: "8,0" }] }],
       summary: { mediaAnual: "8,0", faltas: "4" },
       recentChangeStatus: "unchanged",

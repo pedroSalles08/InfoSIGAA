@@ -41,6 +41,9 @@ jobs:
             "tests/snapshot-smoke.js",
             "tests/active-page-smoke.js",
             "tests/session-expiry-smoke.js",
+            "tests/privacy-storage-smoke.js",
+            "tests/identity-isolation-smoke.js",
+            "tests/privacy-ui-smoke.js",
             "tests/fixtures-privacy.js",
             "tests/website-smoke.js",
             "tests/package-smoke.js"

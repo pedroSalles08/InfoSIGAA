@@ -2,7 +2,10 @@
   "use strict";
 
   const BASE_URL = "https://sig.iffarroupilha.edu.br/sigaa/ava/index.jsf";
-  const STORAGE_KEY = "sigaa-grade-monitor:data:v2";
+  const privacyStorage = globalThis.InfoSigaaPrivacyStorage || (
+    typeof require === "function" ? require("./privacy-storage.js") : null
+  );
+  const STORAGE_KEY = privacyStorage?.DATA_KEY || "sigaa-grade-monitor:data:v3";
   const MAX_COURSES = 30;
   const SESSION_EXPIRED_CODE = "SIGAA_SESSION_EXPIRED";
 
@@ -111,33 +114,41 @@
     });
   }
 
-  async function loadStoredGrades() {
-    return new Promise((resolve) => {
-      chrome.storage.local.get([STORAGE_KEY], (result) => {
-        resolve(result[STORAGE_KEY] || null);
-      });
-    });
+  function normalizePrivacyContext(context) {
+    return {
+      incognito: Boolean(context?.incognito),
+      mode: context?.mode === privacyStorage.PUBLIC_MODE
+        ? privacyStorage.PUBLIC_MODE
+        : privacyStorage.PERSONAL_MODE
+    };
   }
 
-  async function saveStoredGrades(data) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.set({ [STORAGE_KEY]: data }, () => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-
-        resolve();
-      });
-    });
+  async function loadStoredGrades(privacyContext) {
+    return privacyStorage.loadData(normalizePrivacyContext(privacyContext));
   }
 
-  function getCachedData(previousData) {
+  async function saveStoredGrades(data, privacyContext) {
+    return privacyStorage.saveData(normalizePrivacyContext(privacyContext), data);
+  }
+
+  function isPublicMode(privacyContext) {
+    return normalizePrivacyContext(privacyContext).mode === privacyStorage.PUBLIC_MODE;
+  }
+
+  async function discardCurrentData(privacyContext) {
+    return privacyStorage.removeCurrentData(normalizePrivacyContext(privacyContext));
+  }
+
+  function getCachedData(previousData, privacyContext) {
+    if (isPublicMode(privacyContext)) {
+      return null;
+    }
+
     return previousData?.ok && Array.isArray(previousData.courses) ? previousData : null;
   }
 
-  function buildAuthenticationResult(previousData, attemptedAt) {
-    const cachedData = getCachedData(previousData);
+  function buildAuthenticationResult(previousData, attemptedAt, privacyContext) {
+    const cachedData = getCachedData(previousData, privacyContext);
 
     return {
       ok: false,
@@ -150,14 +161,45 @@
     };
   }
 
-  function buildRefreshFailure(previousData, attemptedAt, status, message) {
+  function buildRefreshFailure(previousData, attemptedAt, status, message, privacyContext) {
     return {
       ok: false,
       status,
       attemptedAt,
-      cachedData: getCachedData(previousData),
+      cachedData: getCachedData(previousData, privacyContext),
       message
     };
+  }
+
+  async function getPreviousForCurrent(previousData, currentData, privacyContext) {
+    if (!previousData) {
+      return null;
+    }
+
+    const matchingPrevious = privacyStorage.getMatchingPrevious(previousData, currentData);
+
+    if (!matchingPrevious) {
+      await discardCurrentData(privacyContext);
+    }
+
+    return matchingPrevious;
+  }
+
+  async function persistSuccessfulData(data, privacyContext) {
+    const ownedData = privacyStorage.attachOwner(data);
+
+    if (isPublicMode(privacyContext) && !privacyStorage.extractOwner(ownedData)) {
+      await discardCurrentData(privacyContext);
+      return ownedData;
+    }
+
+    const saved = await saveStoredGrades(ownedData, privacyContext);
+
+    if (!saved) {
+      throw new Error("Nao foi possivel salvar os dados atualizados.");
+    }
+
+    return ownedData;
   }
 
   function getInitialCourses(parser, html) {
@@ -176,9 +218,10 @@
     };
   }
 
-  async function refreshAllGrades(activePage) {
+  async function refreshAllGrades(activePage, requestedPrivacyContext) {
     const parser = globalThis.SigaaParser;
-    const previousData = await loadStoredGrades();
+    const privacyContext = normalizePrivacyContext(requestedPrivacyContext);
+    const previousData = await loadStoredGrades(privacyContext);
     const startedAt = new Date().toISOString();
 
     try {
@@ -187,7 +230,11 @@
         /^https:\/\/sig\.iffarroupilha\.edu\.br\/sigaa\//.test(activePage.url || "");
 
       if (hasActiveSigaaPage && parser.isAuthenticationPage(activePage.html, activePage.url, 200)) {
-        return buildAuthenticationResult(previousData, startedAt);
+        if (isPublicMode(privacyContext)) {
+          await discardCurrentData(privacyContext);
+        }
+
+        return buildAuthenticationResult(previousData, startedAt, privacyContext);
       }
 
       const authenticatedIndexHtml = await fetchHtml(BASE_URL);
@@ -203,22 +250,27 @@
 
       if (activeGrades?.tableFound && activeGrades.hasGrades) {
         const updatedAt = new Date().toISOString();
-        const data = globalThis.SigaaSnapshot.mergeActiveCourse(
+        const currentCourse = {
+          ...activeGrades.course,
+          studentName: activeGrades.studentName,
+          enrollment: activeGrades.enrollment,
+          periods: activeGrades.periods,
+          summary: activeGrades.summary,
+          attendance: activeAttendance,
+          updatedAt
+        };
+        const matchingPrevious = await getPreviousForCurrent(
           previousData,
-          {
-            ...activeGrades.course,
-            studentName: activeGrades.studentName,
-            enrollment: activeGrades.enrollment,
-            periods: activeGrades.periods,
-            summary: activeGrades.summary,
-            attendance: activeAttendance,
-            updatedAt
-          },
+          { courses: [currentCourse] },
+          privacyContext
+        );
+        const data = globalThis.SigaaSnapshot.mergeActiveCourse(
+          matchingPrevious,
+          currentCourse,
           updatedAt
         );
 
-        await saveStoredGrades(data);
-        return data;
+        return persistSuccessfulData(data, privacyContext);
       }
 
       const initial = getInitialCourses(parser, indexHtml);
@@ -229,7 +281,8 @@
           previousData,
           startedAt,
           "refresh_failed",
-          "Nao encontrei a lista de materias. Abra o portal discente do SIGAA e tente novamente."
+          "Nao encontrei a lista de materias. Abra o portal discente do SIGAA e tente novamente.",
+          privacyContext
         );
       }
 
@@ -328,27 +381,39 @@
           previousData,
           startedAt,
           "refresh_failed",
-          "Nao foi possivel atualizar nenhuma materia. Os ultimos dados validos foram preservados."
+          isPublicMode(privacyContext)
+            ? "Nao foi possivel atualizar nenhuma materia. Tente novamente."
+            : "Nao foi possivel atualizar nenhuma materia. Os ultimos dados validos foram preservados.",
+          privacyContext
         );
       }
 
+      const currentData = {
+        ok: true,
+        status: "ok",
+        updatedAt: new Date().toISOString(),
+        courses: results,
+        errors: results.filter((course) => course.error).length,
+        noGrades: results.filter((course) => course.noGrades).length
+      };
+      const matchingPrevious = await getPreviousForCurrent(
+        previousData,
+        currentData,
+        privacyContext
+      );
       const data = globalThis.SigaaSnapshot.annotateChanges(
-        {
-          ok: true,
-          status: "ok",
-          updatedAt: new Date().toISOString(),
-          courses: results,
-          errors: results.filter((course) => course.error).length,
-          noGrades: results.filter((course) => course.noGrades).length
-        },
-        previousData
+        currentData,
+        matchingPrevious
       );
 
-      await saveStoredGrades(data);
-      return data;
+      return persistSuccessfulData(data, privacyContext);
     } catch (error) {
       if (isSessionExpiredError(error)) {
-        return buildAuthenticationResult(previousData, startedAt);
+        if (isPublicMode(privacyContext)) {
+          await discardCurrentData(privacyContext);
+        }
+
+        return buildAuthenticationResult(previousData, startedAt, privacyContext);
       }
 
       throw error;

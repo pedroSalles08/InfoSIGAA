@@ -9,27 +9,81 @@
   <body>
     <main class="app">
       <header class="header">
-        <div>
+        <div class="header-copy">
           <h1>InfoSIGAA</h1>
           <p id="last-updated" class="muted">Nenhuma atualizacao ainda</p>
+          <p id="privacy-summary" class="privacy-summary" hidden></p>
         </div>
-        <button id="refresh-button" type="button">Atualizar</button>
+        <div class="header-actions">
+          <button id="settings-button" class="secondary-button settings-button" type="button" aria-label="Abrir privacidade e dados" hidden>Privacidade</button>
+          <button id="refresh-button" type="button" hidden>Atualizar</button>
+        </div>
       </header>
 
-      <section id="status" class="status" hidden></section>
-      <section class="controls" aria-label="Filtros de matérias">
-        <input id="course-search" class="search-input" type="search" placeholder="Buscar matéria..." autocomplete="off">
-        <div id="course-filters" class="filters" role="tablist" aria-label="Filtrar matérias">
-          <button class="filter-button active" type="button" data-filter="all" role="tab" aria-selected="true">Todas</button>
-          <button class="filter-button" type="button" data-filter="with-grades" role="tab" aria-selected="false">Com notas</button>
-          <button class="filter-button" type="button" data-filter="no-grades" role="tab" aria-selected="false">Sem notas</button>
-          <button class="filter-button" type="button" data-filter="changed" role="tab" aria-selected="false">Alteradas</button>
-          <button class="filter-button" type="button" data-filter="errors" role="tab" aria-selected="false">Erros</button>
+      <section id="privacy-setup" class="privacy-panel setup-panel" aria-labelledby="setup-title" hidden>
+        <p class="panel-eyebrow">Primeiro uso</p>
+        <h2 id="setup-title">Onde você usa o InfoSIGAA?</h2>
+        <p class="panel-description">Essa escolha define por quanto tempo notas e frequência permanecem neste perfil do Chrome. Você poderá mudar depois.</p>
+        <div class="mode-choices">
+          <button class="mode-choice recommended" type="button" data-setup-mode="personal">
+            <span class="mode-choice-heading"><strong>Meu computador</strong><span>Recomendado</span></span>
+            <small>Mantém o painel salvo e compara mudanças entre seus acessos.</small>
+          </button>
+          <button class="mode-choice" type="button" data-setup-mode="public">
+            <span class="mode-choice-heading"><strong>Computador compartilhado</strong></span>
+            <small>Protege o painel entre alunos e não salva dados acadêmicos permanentemente.</small>
+          </button>
         </div>
       </section>
-      <section id="courses" class="courses"></section>
+
+      <section id="privacy-settings" class="privacy-panel settings-panel" aria-labelledby="settings-title" hidden>
+        <div class="panel-heading">
+          <div><p class="panel-eyebrow">Privacidade</p><h2 id="settings-title">Dados neste navegador</h2></div>
+          <button id="close-settings-button" class="secondary-button compact-button" type="button">Voltar</button>
+        </div>
+        <p id="settings-description" class="panel-description"></p>
+        <div class="settings-group">
+          <span class="settings-label">Tipo de dispositivo</span>
+          <div class="mode-selector" role="group" aria-label="Tipo de dispositivo">
+            <button class="mode-button" type="button" data-device-mode="personal">Pessoal</button>
+            <button class="mode-button" type="button" data-device-mode="public">Compartilhado</button>
+          </div>
+          <p id="incognito-note" class="settings-note" hidden>Na janela anônima, o modo compartilhado é usado automaticamente.</p>
+        </div>
+        <div class="settings-danger">
+          <div><strong>Dados acadêmicos</strong><p>Apaga notas, frequência e histórico de mudanças desta extensão.</p></div>
+          <button id="clear-data-button" class="danger-button" type="button">Limpar dados</button>
+        </div>
+      </section>
+
+      <section id="dashboard" hidden>
+        <section id="status" class="status" aria-live="polite" hidden></section>
+        <section id="course-controls" class="controls" aria-label="Filtros de matérias">
+          <input id="course-search" class="search-input" type="search" placeholder="Buscar matéria..." autocomplete="off">
+          <div id="course-filters" class="filters" role="tablist" aria-label="Filtrar matérias">
+            <button class="filter-button active" type="button" data-filter="all" role="tab" aria-selected="true">Todas</button>
+            <button class="filter-button" type="button" data-filter="with-grades" role="tab" aria-selected="false">Com notas</button>
+            <button class="filter-button" type="button" data-filter="no-grades" role="tab" aria-selected="false">Sem notas</button>
+            <button class="filter-button" type="button" data-filter="changed" role="tab" aria-selected="false">Alteradas</button>
+            <button class="filter-button" type="button" data-filter="errors" role="tab" aria-selected="false">Erros</button>
+          </div>
+        </section>
+        <section id="courses" class="courses"></section>
+      </section>
     </main>
 
+    <dialog id="confirmation-dialog" class="confirmation-dialog" aria-labelledby="confirmation-title">
+      <form method="dialog">
+        <h2 id="confirmation-title"></h2>
+        <p id="confirmation-message"></p>
+        <div class="dialog-actions">
+          <button class="secondary-button" type="submit" value="cancel">Cancelar</button>
+          <button id="confirm-action-button" class="danger-button" type="submit" value="confirm">Confirmar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="src/privacy-storage.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

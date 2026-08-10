@@ -1,16 +1,30 @@
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "sigaa-grade-monitor:data:v2";
   const PORTAL_URL = "https://sig.iffarroupilha.edu.br/sigaa/portais/discente/discente.jsf";
+  const privacyStorage = globalThis.InfoSigaaPrivacyStorage;
 
   const elements = {
     refreshButton: document.getElementById("refresh-button"),
+    settingsButton: document.getElementById("settings-button"),
+    closeSettingsButton: document.getElementById("close-settings-button"),
+    clearDataButton: document.getElementById("clear-data-button"),
     status: document.getElementById("status"),
     courses: document.getElementById("courses"),
     lastUpdated: document.getElementById("last-updated"),
+    privacySummary: document.getElementById("privacy-summary"),
     searchInput: document.getElementById("course-search"),
-    filters: document.getElementById("course-filters")
+    filters: document.getElementById("course-filters"),
+    controls: document.getElementById("course-controls"),
+    dashboard: document.getElementById("dashboard"),
+    privacySetup: document.getElementById("privacy-setup"),
+    privacySettings: document.getElementById("privacy-settings"),
+    settingsDescription: document.getElementById("settings-description"),
+    incognitoNote: document.getElementById("incognito-note"),
+    confirmationDialog: document.getElementById("confirmation-dialog"),
+    confirmationTitle: document.getElementById("confirmation-title"),
+    confirmationMessage: document.getElementById("confirmation-message"),
+    confirmActionButton: document.getElementById("confirm-action-button")
   };
 
   let tooltipElement = null;
@@ -18,6 +32,10 @@
   let currentData = null;
   let searchQuery = "";
   let activeFilter = "all";
+  let deviceMode = "";
+  let effectiveMode = "";
+  let isIncognito = false;
+  let pendingConfirmation = null;
   const expandedCourseIds = new Set();
   const initializedCourseIds = new Set();
 
@@ -872,10 +890,16 @@
   function renderData(data) {
     currentData = data;
     elements.courses.textContent = "";
+    elements.controls.hidden = true;
     elements.lastUpdated.textContent = formatDate(data?.updatedAt);
 
     if (!data) {
-      setStatus("Clique em Atualizar para buscar suas notas no SIGAA.", "");
+      setStatus(
+        effectiveMode === privacyStorage.PUBLIC_MODE
+          ? "Por privacidade, clique em Atualizar para confirmar seus dados neste uso."
+          : "Clique em Atualizar para buscar suas notas no SIGAA.",
+        ""
+      );
       return;
     }
 
@@ -893,6 +917,7 @@
 
     const summary = renderOverallSummary(courses);
     setStatusContent(summary.element, summary.hasWarning ? "warning" : "");
+    elements.controls.hidden = false;
 
     const filteredCourses = getFilteredCourses(courses);
 
@@ -902,12 +927,6 @@
     }
 
     filteredCourses.forEach((course, index) => elements.courses.appendChild(renderCourse(course, index)));
-  }
-
-  function loadStoredData() {
-    chrome.storage.local.get([STORAGE_KEY], (result) => {
-      renderData(result[STORAGE_KEY] || null);
-    });
   }
 
   async function openSigaaPortal() {
@@ -988,7 +1007,8 @@
 
     return {
       ...topFrame,
-      frames
+      frames,
+      incognito: Boolean(tab.incognito)
     };
   }
 
@@ -1010,6 +1030,10 @@
         elements.refreshButton.textContent = "Atualizar";
 
         if (!response?.ok) {
+          if (effectiveMode === privacyStorage.PUBLIC_MODE) {
+            renderData(null);
+          }
+
           setStatus(response?.error || "Falha ao atualizar notas.", "warning");
           return;
         }
@@ -1019,11 +1043,230 @@
       .catch((error) => {
         elements.refreshButton.disabled = false;
         elements.refreshButton.textContent = "Atualizar";
+
+        if (effectiveMode === privacyStorage.PUBLIC_MODE) {
+          renderData(null);
+        }
+
         setStatus(error.message || "Falha ao atualizar notas.", "warning");
       });
   }
 
+  function getPrivacyContext() {
+    return {
+      incognito: isIncognito,
+      deviceMode,
+      mode: effectiveMode
+    };
+  }
+
+  function updatePrivacySummary() {
+    if (!effectiveMode) {
+      elements.privacySummary.hidden = true;
+      elements.privacySummary.textContent = "";
+      return;
+    }
+
+    elements.privacySummary.hidden = false;
+    elements.privacySummary.textContent = effectiveMode === privacyStorage.PUBLIC_MODE
+      ? `Modo compartilhado${isIncognito ? " · janela anônima" : ""}`
+      : "Modo pessoal";
+  }
+
+  function showSetup() {
+    elements.privacySetup.hidden = false;
+    elements.privacySettings.hidden = true;
+    elements.dashboard.hidden = true;
+    elements.refreshButton.hidden = true;
+    elements.settingsButton.hidden = true;
+    updatePrivacySummary();
+  }
+
+  async function showDashboard({ reload = true, message = "" } = {}) {
+    elements.privacySetup.hidden = true;
+    elements.privacySettings.hidden = true;
+    elements.dashboard.hidden = false;
+    elements.refreshButton.hidden = false;
+    elements.settingsButton.hidden = false;
+    updatePrivacySummary();
+
+    if (reload) {
+      const storedData = await privacyStorage.loadData(getPrivacyContext());
+      renderData(storedData);
+    } else {
+      renderData(currentData);
+    }
+
+    if (message) {
+      setStatus(message, "");
+    }
+  }
+
+  function updateSettingsContent() {
+    const displayedMode = isIncognito ? privacyStorage.PUBLIC_MODE : deviceMode;
+
+    elements.privacySettings.querySelectorAll("[data-device-mode]").forEach((button) => {
+      const active = button.dataset.deviceMode === displayedMode;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+      button.disabled = isIncognito;
+    });
+
+    elements.incognitoNote.hidden = !isIncognito;
+
+    if (isIncognito) {
+      elements.settingsDescription.textContent = "Esta janela usa proteção temporária automaticamente. A preferência do navegador não foi alterada.";
+    } else if (deviceMode === privacyStorage.PUBLIC_MODE) {
+      elements.settingsDescription.textContent = "O painel fica temporário e permanece disponível enquanto esta sessão do Chrome estiver aberta.";
+    } else {
+      elements.settingsDescription.textContent = "O último painel válido fica salvo neste perfil para abrir rapidamente e comparar mudanças.";
+    }
+  }
+
+  function showSettings() {
+    updateSettingsContent();
+    elements.privacySetup.hidden = true;
+    elements.dashboard.hidden = true;
+    elements.privacySettings.hidden = false;
+    elements.refreshButton.hidden = true;
+    elements.settingsButton.hidden = true;
+  }
+
+  function showConfirmation({ title, message, confirmLabel, onConfirm }) {
+    elements.confirmationTitle.textContent = title;
+    elements.confirmationMessage.textContent = message;
+    elements.confirmActionButton.textContent = confirmLabel;
+    elements.confirmationDialog.returnValue = "";
+    pendingConfirmation = onConfirm;
+    elements.confirmationDialog.showModal();
+  }
+
+  async function applyDeviceMode(mode) {
+    if (mode === privacyStorage.PUBLIC_MODE) {
+      currentData = null;
+      elements.courses.textContent = "";
+    }
+
+    await privacyStorage.setDeviceMode(mode);
+    deviceMode = mode;
+    effectiveMode = privacyStorage.getEffectiveMode(deviceMode, isIncognito);
+    currentData = null;
+    expandedCourseIds.clear();
+    initializedCourseIds.clear();
+    await showDashboard({ reload: true });
+  }
+
+  function requestDeviceMode(mode) {
+    if (isIncognito || mode === deviceMode) {
+      return;
+    }
+
+    if (mode === privacyStorage.PUBLIC_MODE) {
+      showConfirmation({
+        title: "Usar modo compartilhado?",
+        message: "Os dados acadêmicos salvos serão apagados agora. As próximas consultas ficarão somente na memória do navegador.",
+        confirmLabel: "Ativar e apagar",
+        onConfirm: () => applyDeviceMode(mode)
+      });
+      return;
+    }
+
+    applyDeviceMode(mode).catch((error) => {
+      showDashboard({ reload: false, message: error.message || "Nao foi possivel alterar o modo." });
+    });
+  }
+
+  function requestClearData() {
+    showConfirmation({
+      title: "Limpar dados da extensão?",
+      message: "Isso apaga notas, frequência e histórico de mudanças deste perfil do Chrome. Sua sessão do SIGAA continuará aberta.",
+      confirmLabel: "Limpar dados",
+      onConfirm: async () => {
+        const cleared = await privacyStorage.clearAcademicData();
+
+        if (!cleared) {
+          throw new Error("Nao foi possivel limpar todos os dados da extensão.");
+        }
+
+        currentData = null;
+        searchQuery = "";
+        activeFilter = "all";
+        expandedCourseIds.clear();
+        initializedCourseIds.clear();
+        elements.searchInput.value = "";
+        elements.filters.querySelectorAll("[data-filter]").forEach((button) => {
+          const selected = button.dataset.filter === "all";
+          button.classList.toggle("active", selected);
+          button.setAttribute("aria-selected", String(selected));
+        });
+        await showDashboard({
+          reload: false,
+          message: "Dados da extensão apagados. Sua sessão do SIGAA continua aberta."
+        });
+      }
+    });
+  }
+
+  async function initializePrivacy() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const privacy = await privacyStorage.getPrivacyState();
+    isIncognito = Boolean(tab?.incognito);
+    deviceMode = privacy.deviceMode;
+    effectiveMode = privacyStorage.getEffectiveMode(deviceMode, isIncognito);
+
+    if (!deviceMode && !isIncognito) {
+      showSetup();
+      return;
+    }
+
+    await showDashboard({ reload: true });
+  }
+
   elements.refreshButton.addEventListener("click", refreshGrades);
+  elements.settingsButton.addEventListener("click", showSettings);
+  elements.closeSettingsButton.addEventListener("click", () => showDashboard({ reload: false }));
+  elements.clearDataButton.addEventListener("click", requestClearData);
+  elements.privacySetup.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-setup-mode]");
+
+    if (!button) {
+      return;
+    }
+
+    elements.privacySetup.querySelectorAll("[data-setup-mode]").forEach((choice) => {
+      choice.disabled = true;
+    });
+    applyDeviceMode(button.dataset.setupMode).catch((error) => {
+      elements.privacySetup.querySelectorAll("[data-setup-mode]").forEach((choice) => {
+        choice.disabled = false;
+      });
+      elements.privacySetup.querySelector(".panel-description").textContent =
+        error.message || "Nao foi possivel salvar sua escolha.";
+    });
+  });
+  elements.privacySettings.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-device-mode]");
+
+    if (button) {
+      requestDeviceMode(button.dataset.deviceMode);
+    }
+  });
+  elements.confirmationDialog.addEventListener("close", () => {
+    const action = pendingConfirmation;
+    const confirmed = elements.confirmationDialog.returnValue === "confirm";
+    pendingConfirmation = null;
+
+    if (!confirmed || !action) {
+      return;
+    }
+
+    Promise.resolve(action()).catch((error) => {
+      showDashboard({
+        reload: false,
+        message: error.message || "Nao foi possivel concluir a ação."
+      });
+    });
+  });
   elements.searchInput.addEventListener("input", (event) => {
     searchQuery = event.target.value || "";
 
@@ -1051,5 +1294,10 @@
     }
   });
 
-  loadStoredData();
+  initializePrivacy().catch((error) => {
+    elements.refreshButton.hidden = true;
+    elements.settingsButton.hidden = true;
+    elements.dashboard.hidden = false;
+    setStatus(error.message || "Nao foi possivel iniciar o InfoSIGAA.", "warning");
+  });
 })();

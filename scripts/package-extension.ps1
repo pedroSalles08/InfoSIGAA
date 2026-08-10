@@ -28,6 +28,7 @@ $packageFiles = @(
   "icons/icon-48.png",
   "icons/icon-128.png",
   "src/background.js",
+  "src/privacy-storage.js",
   "src/sigaa-parser.js",
   "src/snapshot.js",
   "src/sigaa-fetcher.js"

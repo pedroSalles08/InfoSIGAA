@@ -22,6 +22,7 @@ Arquivos principais ativos:
 
 - `manifest.json`
   - Extensao MV3.
+  - Usa `incognito: split` para operar com a sessao propria da janela anonima.
   - Permissoes: `activeTab`, `scripting`, `storage`.
   - Host permission: `https://sig.iffarroupilha.edu.br/sigaa/*`.
   - Service worker: `src/background.js`.
@@ -29,14 +30,16 @@ Arquivos principais ativos:
 
 - `popup.html`
   - Estrutura do popup.
-  - Carrega `popup.css` e `popup.js`.
+  - Carrega `popup.css`, `src/privacy-storage.js` e `popup.js`.
 
 - `popup.js`
   - Controla UI do popup.
   - Captura HTML da aba ativa do SIGAA, incluindo frames.
   - Envia mensagem `refreshGrades` para o service worker.
   - Renderiza materias, busca, filtros, cards recolhiveis, tooltips, mudancas, notas e frequencia.
-  - Le o ultimo snapshot salvo via `chrome.storage.local`.
+  - Faz a escolha inicial entre dispositivo pessoal e compartilhado.
+  - Le o ultimo snapshot do armazenamento correspondente: persistente no modo pessoal e temporario no compartilhado enquanto a sessao atual do Chrome estiver ativa.
+  - Oferece configuracao de modo e botao para limpar dados academicos.
 
 - `popup.css`
   - Design do popup.
@@ -44,8 +47,15 @@ Arquivos principais ativos:
   - Badges, filtros, notas, tooltips e barra de presenca.
 
 - `src/background.js`
-  - Importa `sigaa-parser.js`, `snapshot.js` e `sigaa-fetcher.js`.
+  - Importa `privacy-storage.js`, `sigaa-parser.js`, `snapshot.js` e `sigaa-fetcher.js`.
   - Recebe mensagem do popup e chama `SigaaFetcher.refreshAllGrades`.
+
+- `src/privacy-storage.js`
+  - Centraliza preferencia pessoal/compartilhado e o modo efetivo da janela.
+  - Mantem dados pessoais em `chrome.storage.local` e dados compartilhados em `chrome.storage.session`.
+  - Migra a chave antiga, limpa dados academicos e preserva somente a preferencia.
+  - Normaliza a matricula, identifica o proprietario do snapshot e impede comparacao entre alunos diferentes.
+  - Restringe o acesso ao armazenamento a contextos confiaveis da extensao.
 
 - `src/snapshot.js`
   - Compara notas entre snapshots.
@@ -60,7 +70,8 @@ Arquivos principais ativos:
   - Valida a autenticacao antes da coleta e em cada resposta do SIGAA.
   - Interrompe a atualizacao sem gravar quando a sessao expira.
   - Usa `SigaaSnapshot` para comparar e mesclar resultados.
-  - Salva o snapshot atual em `chrome.storage.local`.
+  - Valida a matricula antes de comparar ou mesclar o snapshot anterior.
+  - Salva conforme o modo efetivo e nunca devolve cache temporario em falhas no modo compartilhado.
 
 - `src/sigaa-parser.js`
   - Parser de paginas do SIGAA.
@@ -81,6 +92,15 @@ Arquivos principais ativos:
 
 - `tests/session-expiry-smoke.js`
   - Testa sessao expirada antes e durante a coleta e garante que o snapshot valido nao seja substituido.
+
+- `tests/privacy-storage-smoke.js`
+  - Testa migracao, modos pessoal/compartilhado, contexto anonimo, limpeza e restricao de acesso.
+
+- `tests/identity-isolation-smoke.js`
+  - Testa troca de matricula sem reaproveitar materias e garante que falhas publicas nao revelem cache.
+
+- `tests/privacy-ui-smoke.js`
+  - Testa onboarding, controles, manifesto anonimo, encapsulamento do armazenamento e padrao visual.
 
 - `tests/fixtures-privacy.js`
   - Impede que capturas integrais e indicadores comuns de dados pessoais entrem nas fixtures publicas.
@@ -131,6 +151,12 @@ Esses arquivos existem no projeto, mas nao estao referenciados no `manifest.json
 
 ### Popup
 
+- Na primeira abertura normal, pergunta uma unica vez se o dispositivo e pessoal ou compartilhado.
+- O modo pessoal e a opcao principal e preserva a experiencia persistente anterior.
+- O modo compartilhado mantem o painel temporario disponivel enquanto a mesma sessao do Chrome estiver aberta.
+- Janelas anonimas usam automaticamente o modo compartilhado, sem mudar a preferencia normal.
+- O painel de privacidade permite mudar o modo e limpar dados academicos.
+- A limpeza nao faz logout nem altera cookies do SIGAA.
 - Cards por materia.
 - Nome da materia encurtado genericamente:
   - remove codigo inicial;
@@ -156,10 +182,17 @@ Esses arquivos existem no projeto, mas nao estao referenciados no `manifest.json
 
 Mecanismo atual:
 
-- Usa `chrome.storage.local`.
-- Chave ativa:
-  - `sigaa-grade-monitor:data:v2`
+- No modo pessoal, usa `chrome.storage.local`.
+- No modo compartilhado, usa `chrome.storage.session` para o painel e para comparacao temporaria durante a sessao atual do Chrome.
+- Chave pessoal ativa:
+  - `sigaa-grade-monitor:data:v3`
+- Preferencia nao sensivel:
+  - `infosigaa:privacy:v1`
+- Chaves temporarias:
+  - `infosigaa:session:data:v3:regular`
+  - `infosigaa:session:data:v3:incognito`
 - O snapshot salvo contem o ultimo resultado completo da atualizacao.
+- O snapshot inclui `owner` com matricula normalizada e nome quando uma identidade consistente foi encontrada.
 
 Deteccao:
 
@@ -173,8 +206,9 @@ Deteccao:
 - Materias alteradas aparecem no topo.
 - O destaque dura ate a proxima atualizacao bem-sucedida daquela materia.
 - Ao atualizar diretamente uma pagina de notas, somente a materia correspondente e substituida; as demais permanecem no snapshot.
-- Sessao expirada ou falha total nao substitui o ultimo snapshot valido.
-- Quando a sessao expira, o popup mantem os cards salvos, informa a data da ultima atualizacao valida e oferece acesso ao portal para novo login.
+- A mesclagem parcial so reutiliza as demais materias quando a matricula atual coincide com a proprietaria do snapshot.
+- No modo pessoal, sessao expirada ou falha total nao substitui o ultimo snapshot valido.
+- No modo compartilhado, falhas nunca revelam o snapshot temporario e expiracao de sessao o remove.
 
 ### Frequencia
 
@@ -229,31 +263,29 @@ Nao existe segundo sistema de recolhimento para frequencia.
 
 ## Armazenamento atual
 
-Usa somente `chrome.storage.local` na versao ativa.
+Modo pessoal:
 
-Nao ha uso ativo de:
+- Usa `chrome.storage.local` e mostra o ultimo painel imediatamente.
+- Persiste ao fechar/reabrir o Chrome e recarregar a extensao mantendo o mesmo ID.
+- Nao sincroniza entre computadores ou perfis.
+- Preserva o ultimo resultado valido em falhas.
 
-- `chrome.storage.sync`
-- `chrome.storage.session`
-- `localStorage`
-- `sessionStorage`
-- IndexedDB
+Modo compartilhado:
 
-Comportamento:
+- Usa `chrome.storage.session`; dados academicos nao sao gravados permanentemente.
+- O snapshot temporario permanece disponivel ao reabrir o popup enquanto a mesma sessao do Chrome estiver ativa.
+- Matricula diferente ou inconsistente impede reutilizar o snapshot anterior para comparacao ou mesclagem.
+- O snapshot temporario e removido ao encerrar o Chrome, recarregar a extensao ou detectar logout durante uma atualizacao.
+- Se nao houver identidade confiavel, o resultado atual pode ser exibido, mas nao e mantido para comparacao.
+- Janelas anonimas sempre usam este modo, mesmo quando a preferencia normal e pessoal.
 
-- Persiste ao fechar e abrir o Chrome.
-- Persiste ao recarregar a extensao em `chrome://extensions`.
-- Persiste ao atualizar codigo se a extensao mantiver o mesmo ID.
-- Ao remover a extensao, o Chrome normalmente apaga os dados locais dela.
-- Nao sincroniza entre computadores.
-- Nao e compartilhado entre perfis diferentes do Chrome.
-- Em outro computador, a extensao comeca sem snapshots anteriores.
-- Na primeira atualizacao sem snapshot anterior, as notas atuais viram estado inicial e nao sao marcadas como novas.
+Limpeza e migracao:
 
-Risco em computador compartilhado:
-
-- Se outro usuario usar o mesmo perfil do Chrome, pode abrir o popup e ver o ultimo snapshot salvo.
-- Recomendacao futura: criar `Modo computador publico` ou botao `Limpar dados deste navegador`.
+- `Limpar dados` remove chaves v3, v2, snapshots v1 e dados de sessao, mas preserva a preferencia do dispositivo.
+- Escolher modo compartilhado apaga imediatamente os snapshots persistentes.
+- Voltar ao modo pessoal nao promove dados temporarios para armazenamento persistente.
+- A primeira escolha pessoal migra a chave v2 para v3; ate a escolha, dados antigos ficam ocultos.
+- Nenhum modo usa `chrome.storage.sync`, `localStorage`, Web `sessionStorage` ou IndexedDB.
 
 ## Testes e comandos uteis
 
@@ -264,6 +296,9 @@ node tests\parser-smoke.js
 node tests\snapshot-smoke.js
 node tests\active-page-smoke.js
 node tests\session-expiry-smoke.js
+node tests\privacy-storage-smoke.js
+node tests\identity-isolation-smoke.js
+node tests\privacy-ui-smoke.js
 node tests\fixtures-privacy.js
 ```
 
@@ -271,6 +306,7 @@ Checar sintaxe:
 
 ```powershell
 node --check popup.js
+node --check src\privacy-storage.js
 node --check src\sigaa-parser.js
 node --check src\snapshot.js
 node --check src\sigaa-fetcher.js
@@ -280,16 +316,16 @@ node --check src\background.js
 Ver dados salvos no DevTools do popup:
 
 ```js
-chrome.storage.local.get("sigaa-grade-monitor:data:v2", (r) => {
-  console.log(r["sigaa-grade-monitor:data:v2"]);
+chrome.storage.local.get("sigaa-grade-monitor:data:v3", (r) => {
+  console.log(r["sigaa-grade-monitor:data:v3"]);
 });
 ```
 
 Ver resumo de materias, frequencia e faltas:
 
 ```js
-chrome.storage.local.get("sigaa-grade-monitor:data:v2", (r) => {
-  console.log(r["sigaa-grade-monitor:data:v2"].courses.map((c) => ({
+chrome.storage.local.get("sigaa-grade-monitor:data:v3", (r) => {
+  console.log(r["sigaa-grade-monitor:data:v3"].courses.map((c) => ({
     materia: c.name,
     attendance: c.attendance,
     faltas: c.summary?.faltas
@@ -319,25 +355,20 @@ Capturas reais para diagnostico ficam somente em `fixtures/private/`, diretorio 
 - Preservar materias sem notas como `Sem notas`, nao `Erro`.
 - Preservar ordenacao de materias alteradas no topo.
 - Preservar destaque de notas novas/alteradas na avaliacao especifica.
-- Preservar o snapshot local como fonte da comparacao.
+- Preservar o snapshot selecionado pelo modo como fonte da comparacao, sempre isolado por matricula.
 
 ## Possiveis proximas melhorias
 
-1. Modo computador publico:
-   - nao persistir snapshots em `chrome.storage.local`;
-   - usar dados temporarios ou `chrome.storage.session`;
-   - adicionar botao `Limpar dados deste navegador`.
-
-2. Melhor exportacao/debug:
+1. Melhor exportacao/debug:
    - botao para copiar diagnostico sem dados sensiveis;
    - mostrar se ha snapshot salvo.
 
-3. Melhorar confiabilidade da frequencia:
+2. Melhorar confiabilidade da frequencia:
    - confirmar se `attendance` aparece para todas as materias quando o SIGAA retorna o painel lateral em segundo plano.
 
-4. Testes adicionais:
+3. Testes adicionais:
    - fixtures de materias sem notas;
    - fixtures de frequencia com estados verde, amarelo e vermelho.
 
-5. Refinamento visual:
+4. Refinamento visual:
    - pequenos ajustes de espacamento no popup apos teste real em diferentes resolucoes.

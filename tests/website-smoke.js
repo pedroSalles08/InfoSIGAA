@@ -136,7 +136,13 @@ const hasPendingRelease = /data-download-status="pending"/.test(installation) &&
 assert.ok(hasReleaseAsset || hasPendingRelease, "A página deve ter um asset versionado real ou declarar honestamente que a Release está pendente.");
 assert.match(support, /mailto:infosigaa@protonmail\.com/, "O suporte deve possuir contato acionável.");
 assert.match(privacy, /chrome\.storage\.local/, "A política deve explicar o armazenamento local.");
+assert.match(privacy, /chrome\.storage\.session/, "A política deve explicar o armazenamento temporário.");
+assert.match(privacy, /modo compartilhado/i, "A política deve explicar a proteção em dispositivo compartilhado.");
+assert.match(privacy, /mesma sessão do Chrome estiver ativa/i, "A política deve explicar por quanto tempo o painel compartilhado pode permanecer disponível.");
+assert.match(privacy, /uma atualização detecta logout/i, "A política deve explicar quando os dados temporários são removidos.");
+assert.match(privacy, /Limpar dados/, "A política deve explicar o controle de limpeza.");
 assert.match(privacy, /não solicita nem armazena sua senha/i, "A política deve explicar o tratamento de senha.");
+assert.match(installation, /Permitir no modo anônimo/, "A instalação deve explicar como habilitar o uso anônimo.");
 
 [
   "--bg: #171717",
