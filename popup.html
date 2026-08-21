@@ -10,16 +10,22 @@
     <main class="app">
       <header class="header">
         <div class="header-copy">
-          <h1>InfoSIGAA</h1>
-          <p id="last-updated" class="muted">Nenhuma atualizacao ainda</p>
-          <p id="privacy-summary" class="privacy-summary" hidden></p>
+          <h1 class="header-title">InfoSIGAA</h1>
+          <div class="header-meta">
+            <span id="last-updated" class="muted">Nenhuma atualizacao ainda</span>
+            <span class="meta-dot" aria-hidden="true">·</span>
+            <span id="privacy-summary" class="privacy-summary" hidden></span>
+          </div>
         </div>
         <div class="header-actions">
-          <button id="settings-button" class="secondary-button settings-button" type="button" aria-label="Abrir configurações" hidden>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.6-2-3.4-2.5 1a8 8 0 0 0-1.7-1L15 3.3h-4L10.6 6a8 8 0 0 0-1.7 1l-2.5-1-2 3.4 2 1.6a7.8 7.8 0 0 0 0 2l-2 1.6 2 3.4 2.5-1a8 8 0 0 0 1.7 1l.4 2.7h4l.4-2.7a8 8 0 0 0 1.7-1l2.5 1 2-3.4-2-1.6ZM13 17h-2l-.3-2.2-.8-.3a5.4 5.4 0 0 1-1.2-.7l-.7-.5-2 .8-1-1.7 1.7-1.3-.1-.9a5.2 5.2 0 0 1 0-1.4l.1-.9L5 7.6l1-1.7 2 .8.7-.5a5.4 5.4 0 0 1 1.2-.7l.8-.3L11 3h2l.3 2.2.8.3a5.4 5.4 0 0 1 1.2.7l.7.5 2-.8 1 1.7-1.7 1.3.1.9a5.2 5.2 0 0 1 0 1.4l-.1.9 1.7 1.3-1 1.7-2-.8-.7.5a5.4 5.4 0 0 1-1.2.7l-.8.3L13 17Zm-1-3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0-2a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
-            <span>Configurações</span>
+          <button id="settings-button" class="icon-button" type="button" title="Configurações" aria-label="Configurações" hidden>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.6-2-3.4-2.5 1a8 8 0 0 0-1.7-1L15 3.3h-4L10.6 6a8 8 0 0 0-1.7 1l-2.5-1-2 3.4 2 1.6a7.8 7.8 0 0 0 0 2l-2 1.6 2 3.4 2.5-1a8 8 0 0 0 1.7 1l.4 2.7h4l.4-2.7a8 8 0 0 0 1.7-1l2.5 1 2-3.4-2-1.6ZM13 17h-2l-.3-2.2-.8-.3a5.4 5.4 0 0 1-1.2-.7l-.7-.5-2 .8-1-1.7 1.7-1.3-.1-.9a5.2 5.2 0 0 1 0-1.4l.1-.9L5 7.6l1-1.7 2 .8.7-.5a5.4 5.4 0 0 1 1.2-.7l.8-.3L11 3h2l.3 2.2.8.3a5.4 5.4 0 0 1 1.2.7l.7.5 2-.8 1 1.7-1.7 1.3.1.9a5.2 5.2 0 0 1 0 1.4l-.1.9 1.7 1.3-1 1.7-2-.8-.7.5a5.4 5.4 0 0 1-1.2.7l-.8.3L13 17Zm-1-3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0-2a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+            <span class="sr-only">Configurações</span>
           </button>
-          <button id="refresh-button" type="button" hidden>Atualizar</button>
+          <button id="refresh-button" class="icon-button" type="button" title="Atualizar" aria-label="Atualizar" hidden>
+            <svg class="icon-refresh" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"/></svg>
+            <span class="sr-only">Atualizar</span>
+          </button>
         </div>
       </header>
 
@@ -86,7 +92,10 @@
       <section id="dashboard" hidden>
         <section id="status" class="status" aria-live="polite" hidden></section>
         <section id="course-controls" class="controls" aria-label="Filtros de matérias">
-          <input id="course-search" class="search-input" type="search" placeholder="Buscar matéria..." autocomplete="off">
+          <div class="search-wrapper">
+            <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input id="course-search" class="search-input" type="search" placeholder="Buscar matéria..." autocomplete="off">
+          </div>
           <div id="course-filters" class="filters" role="tablist" aria-label="Filtrar matérias">
             <button class="filter-button active" type="button" data-filter="all" role="tab" aria-selected="true">Todas</button>
             <button class="filter-button" type="button" data-filter="with-grades" role="tab" aria-selected="false">Com notas</button>

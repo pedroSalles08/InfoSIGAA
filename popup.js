@@ -581,19 +581,20 @@
       { label: "Aulas", value: `${metrics.aulasMinistradas}/${metrics.aulasTotal}` },
       { label: "Carga ministrada", value: formatPercent(metrics.percentualCargaMinistrada) },
       { label: "Faltas", value: String(metrics.faltas) },
-      { label: "Presença atual", value: formatPercent(metrics.presencaAtual) },
+      { label: "Presença atual", value: formatPercent(metrics.presencaAtual), highlight: true },
       {
         label: "Máx. possível",
         value: formatPercent(metrics.presencaFinalMaxima),
         title: "Maior presença possível caso o aluno compareça a todas as aulas restantes."
       }
-    ].forEach(({ label, value, title }) => {
-      const item = createElement("div", "attendance-item");
+    ].forEach(({ label, value, title, highlight }) => {
+      const item = createElement("div", `attendance-item${highlight ? ` ${metrics.status}` : ""}`);
       const labelElement = createElement("span", "", label);
 
       if (title) {
         labelElement.title = title;
         labelElement.setAttribute("aria-label", title);
+        labelElement.tabIndex = 0;
       }
 
       item.appendChild(labelElement);
@@ -696,7 +697,7 @@
     [
       renderCompactStat("Média", course.summary?.mediaAnual, "average"),
       renderCompactStat("Faltas", course.summary?.faltas, "absence"),
-      renderCompactStat("Sit.", course.summary?.situacao || course.summary?.resultado, "status")
+      renderCompactStat("Situação", course.summary?.situacao || course.summary?.resultado, "status")
     ].filter(Boolean).forEach((item) => stats.appendChild(item));
 
     if (stats.childElementCount > 0) {
@@ -739,22 +740,11 @@
     return container;
   }
 
-  function renderExpandedQuickSummary(course) {
-    const container = createElement("div", "expanded-quick-summary");
-    const metrics = getAttendanceMetrics(course);
-
-    [
-      renderCompactStat("Média", course.summary?.mediaAnual, "average"),
-      renderCompactStat("Faltas", course.summary?.faltas, "absence"),
-      metrics ? renderCompactStat("Presença", formatPercent(metrics.presencaAtual), `presence ${metrics.status}`) : null,
-      renderCompactStat("Sit.", course.summary?.situacao || course.summary?.resultado, "status")
-    ].filter(Boolean).forEach((item) => container.appendChild(item));
-
-    return container.childElementCount > 0 ? container : null;
-  }
-
-  function renderGrade(grade) {
-    const item = createElement("div", `grade${grade.changeType ? ` ${grade.changeType}` : ""}${grade.changed ? " changed" : ""}`);
+  function renderGrade(grade, isInline) {
+    const item = createElement(
+      "div",
+      `grade${isInline ? " inline-grade" : ""}${grade.changeType ? ` ${grade.changeType}` : ""}${grade.changed ? " changed" : ""}`
+    );
     const labelText = grade.sigla || grade.label || "Nota";
     const label = createElement("span", "grade-label", labelText);
     const fullName = getGradeTooltipText(grade, labelText);
@@ -773,37 +763,50 @@
   }
 
   function renderPeriod(period) {
-    const section = createElement("section", "period");
-    section.appendChild(createElement("h3", "period-title", period.name));
+    const grades = period.grades || [];
+    const isSingle = grades.length === 1;
+    const section = createElement("section", `period${isSingle ? " single-item" : ""}`);
 
-    const grades = createElement("div", "grades");
-    (period.grades || []).forEach((grade) => grades.appendChild(renderGrade(grade)));
-    section.appendChild(grades);
+    if (isSingle) {
+      const headerRow = createElement("div", "period-single-row");
+      headerRow.appendChild(createElement("h3", "period-title", period.name));
+      headerRow.appendChild(renderGrade(grades[0], true));
+      section.appendChild(headerRow);
+      return section;
+    }
+
+    section.appendChild(createElement("h3", "period-title", period.name));
+    const gradesContainer = createElement("div", "grades");
+    grades.forEach((grade) => gradesContainer.appendChild(renderGrade(grade, false)));
+    section.appendChild(gradesContainer);
 
     return section;
   }
 
   function renderSummary(summary) {
     const entries = [
-      ["Media anual", summary?.mediaAnual],
+      ["Média anual", summary?.mediaAnual],
       ["Resultado", summary?.resultado],
       ["Faltas", summary?.faltas],
-      ["Situacao", summary?.situacao]
+      ["Situação", summary?.situacao]
     ].filter(([, value]) => value);
 
     if (entries.length === 0) {
       return null;
     }
 
-    const container = createElement("div", "summary");
+    const section = createElement("section", "summary-section");
+    section.appendChild(createElement("h3", "period-title", "Resumo do ano"));
+    const container = createElement("div", "summary-grid");
     entries.forEach(([label, value]) => {
       const item = createElement("div", "summary-item");
       item.appendChild(createElement("span", "", label));
       item.appendChild(createElement("strong", "", value));
       container.appendChild(item);
     });
+    section.appendChild(container);
 
-    return container;
+    return section;
   }
 
   function renderExpandedContent(course) {
@@ -823,12 +826,6 @@
       }
 
       return fragment;
-    }
-
-    const quickSummary = renderExpandedQuickSummary(course);
-
-    if (quickSummary) {
-      fragment.appendChild(quickSummary);
     }
 
     (course.periods || []).forEach((period) => fragment.appendChild(renderPeriod(period)));
@@ -854,12 +851,27 @@
       `course${course.noGrades ? " no-grades" : ""}${expansion.expanded ? " expanded" : ""}`
     );
     const header = createElement("header", "course-header");
-    const headingBlock = createElement("div");
+    const headingBlock = createElement("div", "course-heading");
     const headerActions = createElement("div", "course-actions");
     const originalTitle = getOriginalCourseTitle(course);
     const displayName = getCourseDisplayName(course);
     const title = createElement("h2", "course-title", displayName);
-    const toggleButton = createElement("button", "course-toggle", expansion.expanded ? "Ocultar" : "Ver detalhes");
+
+    const toggleButton = createElement("button", "course-toggle");
+    const toggleText = createElement("span", "toggle-text", "Detalhes");
+    const chevronSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    chevronSvg.setAttribute("class", "toggle-chevron");
+    chevronSvg.setAttribute("viewBox", "0 0 24 24");
+    chevronSvg.setAttribute("width", "12");
+    chevronSvg.setAttribute("height", "12");
+    chevronSvg.setAttribute("aria-hidden", "true");
+    const chevronPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    chevronPath.setAttribute("fill", "currentColor");
+    chevronPath.setAttribute("d", "M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z");
+    chevronSvg.appendChild(chevronPath);
+
+    toggleButton.appendChild(toggleText);
+    toggleButton.appendChild(chevronSvg);
 
     if (originalTitle && originalTitle !== displayName) {
       title.title = originalTitle;
@@ -873,7 +885,7 @@
       : [];
 
     if (teachers.length > 0) {
-      headingBlock.appendChild(createElement("p", "muted", teachers.join(" e ")));
+      headingBlock.appendChild(createElement("p", "course-teacher muted", teachers.join(" e ")));
     }
 
     header.appendChild(headingBlock);
@@ -892,7 +904,7 @@
 
     toggleButton.type = "button";
     toggleButton.setAttribute("aria-expanded", String(expansion.expanded));
-    toggleButton.setAttribute("aria-label", `${expansion.expanded ? "Recolher" : "Expandir"} ${displayName}`);
+    toggleButton.setAttribute("aria-label", `${expansion.expanded ? "Recolher detalhes de" : "Ver detalhes de"} ${displayName}`);
     toggleButton.addEventListener("click", (event) => {
       event.stopPropagation();
       toggleCourse(expansion.courseKey);
@@ -1006,7 +1018,14 @@
 
   function setRefreshRunning(running) {
     elements.refreshButton.disabled = running;
-    elements.refreshButton.textContent = running ? "Atualizando" : "Atualizar";
+    elements.refreshButton.classList.toggle("is-refreshing", running);
+    elements.refreshButton.title = running ? "Atualizando..." : "Atualizar";
+    elements.refreshButton.setAttribute("aria-label", running ? "Atualizando" : "Atualizar");
+
+    const srText = elements.refreshButton.querySelector(".sr-only");
+    if (srText) {
+      srText.textContent = running ? "Atualizando" : "Atualizar";
+    }
 
     if (running) {
       setStatus("Atualizando em segundo plano. Você pode fechar este painel e continuar usando o SIGAA.", "");
