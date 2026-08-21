@@ -4,8 +4,11 @@ const parser = require("../src/sigaa-parser.js");
 
 const fixtureHtml = fs.readFileSync("fixtures/turma-virtual-fisica.html", "utf8");
 const portalHtml = fs.readFileSync("fixtures/portal-discente.html", "utf8");
+const enrollmentCertificateHtml = fs.readFileSync("fixtures/atestado-matricula.html", "utf8");
 const courses = parser.extractCourses(fixtureHtml);
 const portalCourses = parser.extractPortalCourses(portalHtml);
+const enrollmentCertificateAction = parser.extractEnrollmentCertificateAction(portalHtml);
+const enrollmentCourses = parser.extractEnrollmentCourses(enrollmentCertificateHtml);
 const verNotasAction = parser.extractVerNotasAction(fixtureHtml);
 
 assert.strictEqual(courses.length, 3);
@@ -13,6 +16,25 @@ assert.ok(courses.some((course) => course.code === "99990001" && course.name ===
 assert.strictEqual(portalCourses.length, 3);
 assert.ok(portalCourses.some((course) => course.name === "FÍSICA"));
 assert.ok(portalCourses.every((course) => course.formId.startsWith("form_acessarTurmaVirtual")));
+assert.deepStrictEqual(enrollmentCertificateAction, {
+  formId: "menu:form_menu_discente",
+  actionParam: "jscook_action",
+  params: {
+    jscook_action: "menu_test:A]#{ portalDiscente.atestadoMatricula }"
+  }
+});
+assert.strictEqual(enrollmentCourses.length, 4);
+assert.deepStrictEqual(enrollmentCourses[0], {
+  code: "99990001",
+  name: "FÍSICA",
+  teachers: ["DANIELA SCHITTLER"]
+});
+assert.deepStrictEqual(enrollmentCourses[1].teachers, [
+  "MARIA ANGELICA FIGUEIREDO OLIVEIRA",
+  "JOÃO DA SILVA"
+]);
+assert.deepStrictEqual(enrollmentCourses[2].teachers, []);
+assert.deepStrictEqual(enrollmentCourses[3].teachers, []);
 assert.ok(verNotasAction);
 assert.strictEqual(verNotasAction.formId, "formMenu");
 

@@ -200,7 +200,10 @@
       const previousCourse = previousCourses[matchIndex];
       const stableCurrentCourse = {
         ...currentCourse,
-        courseId: previousCourse.courseId || currentCourse.courseId
+        courseId: previousCourse.courseId || currentCourse.courseId,
+        ...(!Array.isArray(currentCourse.teachers) && Array.isArray(previousCourse.teachers)
+          ? { teachers: previousCourse.teachers }
+          : {})
       };
       courses[matchIndex] = annotateCourseChanges(stableCurrentCourse, previousCourse, detectedAt);
     } else {

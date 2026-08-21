@@ -151,7 +151,11 @@ async function run() {
   assert.strictEqual(totalFailure.status, "refresh_failed");
   assert.strictEqual(totalFailure.cachedData, previousData);
   assert.strictEqual(saveCalls, 0);
-  assert.strictEqual(fetchCount, 4);
+  assert.strictEqual(
+    fetchCount,
+    5,
+    "O atestado consolidado deve acrescentar somente uma requisicao a atualizacao completa."
+  );
 
   console.log("session-expiry-smoke-ok");
 }

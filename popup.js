@@ -18,6 +18,7 @@
     controls: document.getElementById("course-controls"),
     dashboard: document.getElementById("dashboard"),
     privacySetup: document.getElementById("privacy-setup"),
+    autoRefreshSetup: document.getElementById("auto-refresh-setup"),
     privacySettings: document.getElementById("privacy-settings"),
     settingsDescription: document.getElementById("settings-description"),
     incognitoNote: document.getElementById("incognito-note"),
@@ -34,8 +35,13 @@
   let activeFilter = "all";
   let deviceMode = "";
   let effectiveMode = "";
+  let autoRefreshEnabled = false;
+  let autoRefreshConfigured = false;
+  let autoRefreshOnboardingPending = false;
   let isIncognito = false;
   let pendingConfirmation = null;
+  let refreshStatusTimer = null;
+  let observedBackgroundRefresh = false;
   const expandedCourseIds = new Set();
   const initializedCourseIds = new Set();
 
@@ -220,9 +226,20 @@
     const noGradesCount = courses.filter((course) => course.noGrades).length;
     const changedCount = courses.filter((course) => hasRecentChange(course)).length;
     const loadedCount = courses.length - errorCount - noGradesCount;
+    const totalAbsences = courses.reduce((total, course) => {
+      const absences = parseLocalizedNumber(course.summary?.faltas);
+      return total + (absences == null ? 0 : Math.max(0, absences));
+    }, 0);
     const container = createElement("div", "status-chips");
 
     container.appendChild(renderStatusChip("com notas", loadedCount, "ok"));
+    container.appendChild(
+      renderStatusChip(
+        totalAbsences === 1 ? "falta no total" : "faltas no total",
+        new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(totalAbsences),
+        "absence"
+      )
+    );
 
     if (noGradesCount > 0) {
       container.appendChild(renderStatusChip("sem notas", noGradesCount, "no-grades"));
@@ -851,8 +868,12 @@
 
     headingBlock.appendChild(title);
 
-    if (course.studentName) {
-      headingBlock.appendChild(createElement("p", "muted", course.studentName));
+    const teachers = Array.isArray(course.teachers)
+      ? course.teachers.map((name) => String(name || "").trim()).filter(Boolean)
+      : [];
+
+    if (teachers.length > 0) {
+      headingBlock.appendChild(createElement("p", "muted", teachers.join(" e ")));
     }
 
     header.appendChild(headingBlock);
@@ -983,66 +1004,80 @@
     renderData(data);
   }
 
-  async function getActiveSigaaPage() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  function setRefreshRunning(running) {
+    elements.refreshButton.disabled = running;
+    elements.refreshButton.textContent = running ? "Atualizando" : "Atualizar";
 
-    if (!tab?.id || !/^https:\/\/sig\.iffarroupilha\.edu\.br\/sigaa\//.test(tab.url || "")) {
-      return null;
+    if (running) {
+      setStatus("Atualizando em segundo plano. Você pode fechar este painel e continuar usando o SIGAA.", "");
+    }
+  }
+
+  function stopRefreshStatusPolling() {
+    if (!refreshStatusTimer) {
+      return;
     }
 
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      func: () => ({
-        html: document.documentElement.outerHTML,
-        title: document.title,
-        url: location.href
-      })
-    });
-    const frames = (results || []).map((item) => item.result).filter(Boolean);
-    const topFrame = frames.find((frame) => frame.url === tab.url) || frames[0] || null;
+    clearInterval(refreshStatusTimer);
+    refreshStatusTimer = null;
+  }
 
-    if (!topFrame) {
-      return null;
+  async function syncRefreshStatus() {
+    const status = await chrome.runtime.sendMessage({ type: "getRefreshStatus" });
+
+    if (status?.running) {
+      observedBackgroundRefresh = true;
+      setRefreshRunning(true);
+      return;
     }
 
-    return {
-      ...topFrame,
-      frames,
-      incognito: Boolean(tab.incognito)
-    };
+    if (!observedBackgroundRefresh) {
+      return;
+    }
+
+    observedBackgroundRefresh = false;
+    stopRefreshStatusPolling();
+    setRefreshRunning(false);
+
+    if (status?.response?.ok) {
+      renderRefreshResult(status.response.data);
+      acknowledgeRefreshResult();
+      return;
+    }
+
+    if (status?.response?.error) {
+      setStatus(status.response.error, "warning");
+      acknowledgeRefreshResult();
+      return;
+    }
+
+    const storedData = await privacyStorage.loadData(getPrivacyContext());
+    renderData(storedData);
+    acknowledgeRefreshResult();
+  }
+
+  function startRefreshStatusPolling() {
+    if (!refreshStatusTimer) {
+      refreshStatusTimer = setInterval(() => {
+        syncRefreshStatus().catch(() => {});
+      }, 750);
+    }
+
+    syncRefreshStatus().catch(() => {});
+  }
+
+  function acknowledgeRefreshResult() {
+    chrome.runtime.sendMessage({ type: "acknowledgeRefreshResult" }).catch(() => {});
   }
 
   function refreshGrades() {
-    elements.refreshButton.disabled = true;
-    elements.refreshButton.textContent = "Atualizando";
-    setStatus("Lendo a pagina atual do SIGAA e buscando notas.", "");
-
-    getActiveSigaaPage()
-      .then((activePage) => {
-        if (!activePage) {
-          throw new Error("Abra o portal discente do SIGAA e clique em Atualizar novamente.");
-        }
-
-        return chrome.runtime.sendMessage({ type: "refreshGrades", activePage });
-      })
-      .then((response) => {
-        elements.refreshButton.disabled = false;
-        elements.refreshButton.textContent = "Atualizar";
-
-        if (!response?.ok) {
-          if (effectiveMode === privacyStorage.PUBLIC_MODE) {
-            renderData(null);
-          }
-
-          setStatus(response?.error || "Falha ao atualizar notas.", "warning");
-          return;
-        }
-
-        renderRefreshResult(response.data);
-      })
+    observedBackgroundRefresh = true;
+    setRefreshRunning(true);
+    chrome.runtime.sendMessage({ type: "refreshGrades" })
       .catch((error) => {
-        elements.refreshButton.disabled = false;
-        elements.refreshButton.textContent = "Atualizar";
+        observedBackgroundRefresh = false;
+        stopRefreshStatusPolling();
+        setRefreshRunning(false);
 
         if (effectiveMode === privacyStorage.PUBLIC_MODE) {
           renderData(null);
@@ -1050,6 +1085,7 @@
 
         setStatus(error.message || "Falha ao atualizar notas.", "warning");
       });
+    startRefreshStatusPolling();
   }
 
   function getPrivacyContext() {
@@ -1075,6 +1111,17 @@
 
   function showSetup() {
     elements.privacySetup.hidden = false;
+    elements.autoRefreshSetup.hidden = true;
+    elements.privacySettings.hidden = true;
+    elements.dashboard.hidden = true;
+    elements.refreshButton.hidden = true;
+    elements.settingsButton.hidden = true;
+    updatePrivacySummary();
+  }
+
+  function showAutoRefreshSetup() {
+    elements.privacySetup.hidden = true;
+    elements.autoRefreshSetup.hidden = false;
     elements.privacySettings.hidden = true;
     elements.dashboard.hidden = true;
     elements.refreshButton.hidden = true;
@@ -1084,6 +1131,7 @@
 
   async function showDashboard({ reload = true, message = "" } = {}) {
     elements.privacySetup.hidden = true;
+    elements.autoRefreshSetup.hidden = true;
     elements.privacySettings.hidden = true;
     elements.dashboard.hidden = false;
     elements.refreshButton.hidden = false;
@@ -1100,6 +1148,16 @@
     if (message) {
       setStatus(message, "");
     }
+
+    syncRefreshStatus()
+      .then(() => {
+        if (observedBackgroundRefresh) {
+          startRefreshStatusPolling();
+        } else {
+          acknowledgeRefreshResult();
+        }
+      })
+      .catch(() => {});
   }
 
   function updateSettingsContent() {
@@ -1113,6 +1171,11 @@
     });
 
     elements.incognitoNote.hidden = !isIncognito;
+    elements.privacySettings.querySelectorAll("[data-auto-refresh-enabled]").forEach((button) => {
+      const active = (button.dataset.autoRefreshEnabled === "true") === autoRefreshEnabled;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
 
     if (isIncognito) {
       elements.settingsDescription.textContent = "Esta janela usa proteção temporária automaticamente. A preferência do navegador não foi alterada.";
@@ -1126,6 +1189,7 @@
   function showSettings() {
     updateSettingsContent();
     elements.privacySetup.hidden = true;
+    elements.autoRefreshSetup.hidden = true;
     elements.dashboard.hidden = true;
     elements.privacySettings.hidden = false;
     elements.refreshButton.hidden = true;
@@ -1141,7 +1205,7 @@
     elements.confirmationDialog.showModal();
   }
 
-  async function applyDeviceMode(mode) {
+  async function applyDeviceMode(mode, { continueOnboarding = false } = {}) {
     if (mode === privacyStorage.PUBLIC_MODE) {
       currentData = null;
       elements.courses.textContent = "";
@@ -1153,7 +1217,51 @@
     currentData = null;
     expandedCourseIds.clear();
     initializedCourseIds.clear();
+
+    if (continueOnboarding && !autoRefreshConfigured) {
+      showAutoRefreshSetup();
+      return;
+    }
+
     await showDashboard({ reload: true });
+  }
+
+  async function applyAutoRefreshPreference(enabled, { completeOnboarding = false } = {}) {
+    const state = await privacyStorage.setAutoRefreshEnabled(enabled);
+    autoRefreshEnabled = state.autoRefreshEnabled;
+    autoRefreshConfigured = state.autoRefreshConfigured;
+    autoRefreshOnboardingPending = state.autoRefreshOnboardingPending;
+
+    if (completeOnboarding) {
+      await showDashboard({ reload: true });
+      return;
+    }
+
+    updateSettingsContent();
+  }
+
+  function setAutoRefreshControlsDisabled(disabled) {
+    elements.privacySettings.querySelectorAll("[data-auto-refresh-enabled]").forEach((button) => {
+      button.disabled = disabled;
+    });
+  }
+
+  function requestAutoRefreshPreference(enabled) {
+    if (enabled === autoRefreshEnabled && autoRefreshConfigured) {
+      return;
+    }
+
+    setAutoRefreshControlsDisabled(true);
+    applyAutoRefreshPreference(enabled)
+      .catch((error) => {
+        showDashboard({
+          reload: false,
+          message: error.message || "Nao foi possivel alterar a atualizacao automatica."
+        });
+      })
+      .finally(() => {
+        setAutoRefreshControlsDisabled(false);
+      });
   }
 
   function requestDeviceMode(mode) {
@@ -1210,13 +1318,36 @@
   async function initializePrivacy() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const privacy = await privacyStorage.getPrivacyState();
+    let autoRefresh = await privacyStorage.getAutoRefreshState();
     isIncognito = Boolean(tab?.incognito);
     deviceMode = privacy.deviceMode;
     effectiveMode = privacyStorage.getEffectiveMode(deviceMode, isIncognito);
+    autoRefreshEnabled = autoRefresh.autoRefreshEnabled;
+    autoRefreshConfigured = autoRefresh.autoRefreshConfigured;
+    autoRefreshOnboardingPending = autoRefresh.autoRefreshOnboardingPending;
 
     if (!deviceMode && !isIncognito) {
+      if (!autoRefreshConfigured && !autoRefreshOnboardingPending) {
+        autoRefresh = await privacyStorage.markAutoRefreshOnboardingPending();
+        autoRefreshEnabled = autoRefresh.autoRefreshEnabled;
+        autoRefreshConfigured = autoRefresh.autoRefreshConfigured;
+        autoRefreshOnboardingPending = autoRefresh.autoRefreshOnboardingPending;
+      }
+
       showSetup();
       return;
+    }
+
+    if (deviceMode && autoRefreshOnboardingPending && !isIncognito) {
+      showAutoRefreshSetup();
+      return;
+    }
+
+    if (deviceMode && !autoRefreshConfigured && !autoRefreshOnboardingPending) {
+      autoRefresh = await privacyStorage.initializeAutoRefreshForExistingUser();
+      autoRefreshEnabled = autoRefresh.autoRefreshEnabled;
+      autoRefreshConfigured = autoRefresh.autoRefreshConfigured;
+      autoRefreshOnboardingPending = autoRefresh.autoRefreshOnboardingPending;
     }
 
     await showDashboard({ reload: true });
@@ -1236,7 +1367,7 @@
     elements.privacySetup.querySelectorAll("[data-setup-mode]").forEach((choice) => {
       choice.disabled = true;
     });
-    applyDeviceMode(button.dataset.setupMode).catch((error) => {
+    applyDeviceMode(button.dataset.setupMode, { continueOnboarding: true }).catch((error) => {
       elements.privacySetup.querySelectorAll("[data-setup-mode]").forEach((choice) => {
         choice.disabled = false;
       });
@@ -1244,11 +1375,33 @@
         error.message || "Nao foi possivel salvar sua escolha.";
     });
   });
-  elements.privacySettings.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-device-mode]");
+  elements.autoRefreshSetup.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-setup-auto-refresh]");
 
-    if (button) {
-      requestDeviceMode(button.dataset.deviceMode);
+    if (!button) {
+      return;
+    }
+
+    elements.autoRefreshSetup.querySelectorAll("[data-setup-auto-refresh]").forEach((choice) => {
+      choice.disabled = true;
+    });
+    applyAutoRefreshPreference(button.dataset.setupAutoRefresh === "true", { completeOnboarding: true })
+      .catch((error) => {
+        elements.autoRefreshSetup.querySelectorAll("[data-setup-auto-refresh]").forEach((choice) => {
+          choice.disabled = false;
+        });
+        elements.autoRefreshSetup.querySelector(".panel-description").textContent =
+          error.message || "Nao foi possivel salvar sua escolha.";
+      });
+  });
+  elements.privacySettings.addEventListener("click", (event) => {
+    const deviceModeButton = event.target.closest("[data-device-mode]");
+    const autoRefreshButton = event.target.closest("[data-auto-refresh-enabled]");
+
+    if (deviceModeButton) {
+      requestDeviceMode(deviceModeButton.dataset.deviceMode);
+    } else if (autoRefreshButton) {
+      requestAutoRefreshPreference(autoRefreshButton.dataset.autoRefreshEnabled === "true");
     }
   });
   elements.confirmationDialog.addEventListener("close", () => {

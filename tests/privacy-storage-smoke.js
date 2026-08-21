@@ -80,6 +80,24 @@ async function run() {
   assert.strictEqual(storage.getEffectiveMode("personal", true), storage.PUBLIC_MODE);
   assert.strictEqual(storage.getEffectiveMode("personal", false), storage.PERSONAL_MODE);
 
+  assert.deepStrictEqual(await storage.getAutoRefreshState(), {
+    autoRefreshEnabled: false,
+    autoRefreshConfigured: false,
+    autoRefreshOnboardingPending: false
+  });
+  await storage.markAutoRefreshOnboardingPending();
+  assert.deepStrictEqual(await storage.getAutoRefreshState(), {
+    autoRefreshEnabled: false,
+    autoRefreshConfigured: false,
+    autoRefreshOnboardingPending: true
+  });
+  await storage.setAutoRefreshEnabled(true);
+  assert.deepStrictEqual(await storage.getAutoRefreshState(), {
+    autoRefreshEnabled: true,
+    autoRefreshConfigured: true,
+    autoRefreshOnboardingPending: false
+  });
+
   await storage.setDeviceMode(storage.PERSONAL_MODE);
   assert.strictEqual(local.values[storage.PRIVACY_KEY].deviceMode, storage.PERSONAL_MODE);
   assert.strictEqual(local.values[legacyKey], undefined);
@@ -115,6 +133,15 @@ async function run() {
   assert.strictEqual(await storage.loadData(publicContext), null);
   assert.strictEqual(await storage.loadData(incognitoContext), null);
   assert.strictEqual(local.values[storage.PRIVACY_KEY].deviceMode, storage.PUBLIC_MODE);
+  assert.strictEqual(local.values[storage.SETTINGS_KEY].autoRefreshEnabled, true);
+
+  delete local.values[storage.SETTINGS_KEY];
+  await storage.initializeAutoRefreshForExistingUser();
+  assert.deepStrictEqual(await storage.getAutoRefreshState(), {
+    autoRefreshEnabled: false,
+    autoRefreshConfigured: true,
+    autoRefreshOnboardingPending: false
+  });
 
   console.log("privacy-storage-smoke-ok");
 }

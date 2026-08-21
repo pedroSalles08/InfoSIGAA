@@ -16,7 +16,7 @@ const longNumericIdPattern = /\b\d{10,}\b/g;
 
 assert.deepStrictEqual(
   publicFixtures.map((file) => path.basename(file)).sort(),
-  ["portal-discente.html", "turma-virtual-fisica.html", "ver-notas-fisica.html"]
+  ["atestado-matricula.html", "portal-discente.html", "turma-virtual-fisica.html", "ver-notas-fisica.html"]
 );
 
 for (const file of publicFixtures) {

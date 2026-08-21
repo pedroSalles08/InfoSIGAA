@@ -15,13 +15,16 @@
           <p id="privacy-summary" class="privacy-summary" hidden></p>
         </div>
         <div class="header-actions">
-          <button id="settings-button" class="secondary-button settings-button" type="button" aria-label="Abrir privacidade e dados" hidden>Privacidade</button>
+          <button id="settings-button" class="secondary-button settings-button" type="button" aria-label="Abrir configurações" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.6-2-3.4-2.5 1a8 8 0 0 0-1.7-1L15 3.3h-4L10.6 6a8 8 0 0 0-1.7 1l-2.5-1-2 3.4 2 1.6a7.8 7.8 0 0 0 0 2l-2 1.6 2 3.4 2.5-1a8 8 0 0 0 1.7 1l.4 2.7h4l.4-2.7a8 8 0 0 0 1.7-1l2.5 1 2-3.4-2-1.6ZM13 17h-2l-.3-2.2-.8-.3a5.4 5.4 0 0 1-1.2-.7l-.7-.5-2 .8-1-1.7 1.7-1.3-.1-.9a5.2 5.2 0 0 1 0-1.4l.1-.9L5 7.6l1-1.7 2 .8.7-.5a5.4 5.4 0 0 1 1.2-.7l.8-.3L11 3h2l.3 2.2.8.3a5.4 5.4 0 0 1 1.2.7l.7.5 2-.8 1 1.7-1.7 1.3.1.9a5.2 5.2 0 0 1 0 1.4l-.1.9 1.7 1.3-1 1.7-2-.8-.7.5a5.4 5.4 0 0 1-1.2.7l-.8.3L13 17Zm-1-3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0-2a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+            <span>Configurações</span>
+          </button>
           <button id="refresh-button" type="button" hidden>Atualizar</button>
         </div>
       </header>
 
       <section id="privacy-setup" class="privacy-panel setup-panel" aria-labelledby="setup-title" hidden>
-        <p class="panel-eyebrow">Primeiro uso</p>
+        <p class="panel-eyebrow">Primeiro uso · etapa 1 de 2</p>
         <h2 id="setup-title">Onde você usa o InfoSIGAA?</h2>
         <p class="panel-description">Essa escolha define por quanto tempo notas e frequência permanecem neste perfil do Chrome. Você poderá mudar depois.</p>
         <div class="mode-choices">
@@ -36,19 +39,43 @@
         </div>
       </section>
 
+      <section id="auto-refresh-setup" class="privacy-panel setup-panel" aria-labelledby="auto-refresh-setup-title" hidden>
+        <p class="panel-eyebrow">Primeiro uso · etapa 2 de 2</p>
+        <h2 id="auto-refresh-setup-title">Atualizar dados ao entrar no SIGAA?</h2>
+        <p class="panel-description">O InfoSIGAA pode buscar notas e frequência automaticamente quando o Portal do Discente terminar de carregar.</p>
+        <div class="mode-choices">
+          <button class="mode-choice recommended" type="button" data-setup-auto-refresh="true">
+            <span class="mode-choice-heading"><strong>Ativar atualização automática</strong><span>Recomendado</span></span>
+            <small>Atualiza em segundo plano sem precisar abrir a extensão.</small>
+          </button>
+          <button class="mode-choice" type="button" data-setup-auto-refresh="false">
+            <span class="mode-choice-heading"><strong>Agora não</strong></span>
+            <small>Você continuará podendo usar o botão Atualizar e mudar esta opção depois.</small>
+          </button>
+        </div>
+      </section>
+
       <section id="privacy-settings" class="privacy-panel settings-panel" aria-labelledby="settings-title" hidden>
         <div class="panel-heading">
-          <div><p class="panel-eyebrow">Privacidade</p><h2 id="settings-title">Dados neste navegador</h2></div>
+          <div><p class="panel-eyebrow">Configurações</p><h2 id="settings-title">Preferências do InfoSIGAA</h2></div>
           <button id="close-settings-button" class="secondary-button compact-button" type="button">Voltar</button>
         </div>
-        <p id="settings-description" class="panel-description"></p>
         <div class="settings-group">
-          <span class="settings-label">Tipo de dispositivo</span>
+          <span class="settings-label">Privacidade · tipo de dispositivo</span>
           <div class="mode-selector" role="group" aria-label="Tipo de dispositivo">
             <button class="mode-button" type="button" data-device-mode="personal">Pessoal</button>
             <button class="mode-button" type="button" data-device-mode="public">Compartilhado</button>
           </div>
+          <p id="settings-description" class="settings-option-description"></p>
           <p id="incognito-note" class="settings-note" hidden>Na janela anônima, o modo compartilhado é usado automaticamente.</p>
+        </div>
+        <div class="settings-group">
+          <span class="settings-label">Atualização automática dos dados</span>
+          <p class="settings-option-description">Busca notas e frequência em segundo plano ao entrar no Portal do Discente.</p>
+          <div class="mode-selector" role="group" aria-label="Atualização automática dos dados">
+            <button class="mode-button" type="button" data-auto-refresh-enabled="true">Ativada</button>
+            <button class="mode-button" type="button" data-auto-refresh-enabled="false">Desativada</button>
+          </div>
         </div>
         <div class="settings-danger">
           <div><strong>Dados acadêmicos</strong><p>Apaga notas, frequência e histórico de mudanças desta extensão.</p></div>

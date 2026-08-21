@@ -4,6 +4,7 @@
   const PERSONAL_MODE = "personal";
   const PUBLIC_MODE = "public";
   const PRIVACY_KEY = "infosigaa:privacy:v1";
+  const SETTINGS_KEY = "infosigaa:settings:v1";
   const DATA_KEY = "sigaa-grade-monitor:data:v3";
   const LEGACY_DATA_KEY = "sigaa-grade-monitor:data:v2";
   const LEGACY_SNAPSHOT_PREFIX = "sigaa-grade-monitor:snapshot:v1:";
@@ -173,6 +174,72 @@
     };
   }
 
+  async function getRawSettings() {
+    const result = await readArea("local", [SETTINGS_KEY]);
+    return result[SETTINGS_KEY] || {};
+  }
+
+  function normalizeAutoRefreshState(stored) {
+    return {
+      autoRefreshEnabled: stored?.autoRefreshEnabled === true,
+      autoRefreshConfigured: stored?.autoRefreshConfigured === true,
+      autoRefreshOnboardingPending: stored?.autoRefreshOnboardingPending === true
+    };
+  }
+
+  async function getAutoRefreshState() {
+    return normalizeAutoRefreshState(await getRawSettings());
+  }
+
+  async function writeAutoRefreshState(nextState) {
+    const stored = await getRawSettings();
+    const state = normalizeAutoRefreshState({ ...stored, ...nextState });
+    const saved = await writeArea("local", {
+      [SETTINGS_KEY]: {
+        ...stored,
+        ...state
+      }
+    });
+
+    if (!saved) {
+      throw new Error("Nao foi possivel salvar a preferencia de atualizacao automatica.");
+    }
+
+    return state;
+  }
+
+  async function markAutoRefreshOnboardingPending() {
+    const state = await getAutoRefreshState();
+
+    if (state.autoRefreshConfigured || state.autoRefreshOnboardingPending) {
+      return state;
+    }
+
+    return writeAutoRefreshState({
+      autoRefreshEnabled: false,
+      autoRefreshConfigured: false,
+      autoRefreshOnboardingPending: true
+    });
+  }
+
+  async function setAutoRefreshEnabled(enabled) {
+    return writeAutoRefreshState({
+      autoRefreshEnabled: enabled === true,
+      autoRefreshConfigured: true,
+      autoRefreshOnboardingPending: false
+    });
+  }
+
+  async function initializeAutoRefreshForExistingUser() {
+    const state = await getAutoRefreshState();
+
+    if (state.autoRefreshConfigured || state.autoRefreshOnboardingPending) {
+      return state;
+    }
+
+    return setAutoRefreshEnabled(false);
+  }
+
   function getEffectiveMode(deviceMode, incognito) {
     return incognito ? PUBLIC_MODE : normalizeMode(deviceMode);
   }
@@ -333,21 +400,26 @@
     PERSONAL_MODE,
     PRIVACY_KEY,
     PUBLIC_MODE,
+    SETTINGS_KEY,
     SESSION_DATA_PREFIX,
     attachOwner,
     clearAcademicData,
     extractOwner,
     getContext,
+    getAutoRefreshState,
     getEffectiveMode,
     getMatchingPrevious,
     getPrivacyState,
+    initializeAutoRefreshForExistingUser,
     loadData,
     migrateLegacyToPersonal,
+    markAutoRefreshOnboardingPending,
     normalizeEnrollment,
     ownersMatch,
     removeCurrentData,
     restrictStorageAccess,
     saveData,
+    setAutoRefreshEnabled,
     setDeviceMode
   };
 

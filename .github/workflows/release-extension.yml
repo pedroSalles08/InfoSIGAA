@@ -38,6 +38,7 @@ jobs:
         run: |
           $tests = @(
             "tests/parser-smoke.js",
+            "tests/teacher-fetch-smoke.js",
             "tests/snapshot-smoke.js",
             "tests/active-page-smoke.js",
             "tests/session-expiry-smoke.js",

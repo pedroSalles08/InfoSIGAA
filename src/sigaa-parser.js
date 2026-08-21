@@ -246,6 +246,113 @@
       .filter(Boolean);
   }
 
+  function extractEnrollmentCertificateAction(html) {
+    const forms = matchAll(html, /<form\b[^>]*>[\s\S]*?<\/form>/gi);
+
+    for (const [formHtml] of forms) {
+      const decodedForm = decodeHtml(formHtml);
+      const actionMatch = decodedForm.match(
+        /["']Emitir Atestado de Matr[ií]cula["']\s*,\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']/i
+      );
+
+      if (!actionMatch) {
+        continue;
+      }
+
+      const openTag = formHtml.match(/<form\b[^>]*>/i)?.[0] || "";
+      const formId = getAttr(openTag, "id") || getAttr(openTag, "name") || actionMatch[2];
+
+      if (!formId || !actionMatch[1]) {
+        continue;
+      }
+
+      return {
+        formId,
+        actionParam: "jscook_action",
+        params: {
+          jscook_action: actionMatch[1]
+        }
+      };
+    }
+
+    return null;
+  }
+
+  function extractClassHtml(source, className) {
+    const escapedClass = String(className || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(
+      `<([a-z0-9]+)\\b[^>]*class=["'][^"']*\\b${escapedClass}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/\\1>`,
+      "i"
+    );
+
+    return String(source || "").match(pattern)?.[2] || "";
+  }
+
+  function normalizeTeacherName(value) {
+    return normalizeText(value)
+      .replace(/^(?:prof(?:essor)?(?:a|es|as)?\.?\s*:?\s*)+/i, "")
+      .trim();
+  }
+
+  function parseTeacherNames(innerHtml) {
+    const prepared = String(innerHtml || "")
+      .replace(/<br\s*\/?>/gi, ";")
+      .replace(/&(?:bull|middot);/gi, ";");
+    const text = normalizeText(stripTags(prepared));
+    const unavailable = new Set([
+      "",
+      "-",
+      "--",
+      "a definir",
+      "nao definido",
+      "nao informado",
+      "sem docente"
+    ]);
+
+    if (unavailable.has(normalizeKey(text))) {
+      return [];
+    }
+
+    const splitNames = text
+      .split(/\s*(?:;|\||•)\s*|\s+(?:e|&)\s+/i)
+      .map(normalizeTeacherName)
+      .filter(Boolean);
+    const candidates = splitNames.length > 1 && splitNames.every((name) => name.split(/\s+/).length >= 2)
+      ? splitNames
+      : [normalizeTeacherName(text)];
+    const seen = new Set();
+
+    return candidates.filter((name) => {
+      const key = normalizeKey(name);
+
+      if (!key || seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function extractEnrollmentCourses(html) {
+    return matchAll(html, /<tr\b[^>]*>[\s\S]*?<\/tr>/gi)
+      .map(([rowHtml]) => {
+        const code = stripTags(extractClassHtml(rowHtml, "codigo")).match(/\d{5,}/)?.[0] || "";
+        const name = stripTags(extractClassHtml(rowHtml, "componente"));
+
+        if (!code && !name) {
+          return null;
+        }
+
+        return {
+          code,
+          name,
+          teachers: parseTeacherNames(extractClassHtml(rowHtml, "docente"))
+        };
+      })
+      .filter(Boolean);
+  }
+
   function extractVerNotasAction(html) {
     const anchors = matchAll(html, /<a\b[^>]*>[\s\S]*?<\/a>/gi);
 
@@ -900,7 +1007,8 @@
       code: parsed.code || fallbackCourse?.code || "",
       name: parsed.name || fallbackCourse?.name || "",
       year: parsed.year || fallbackCourse?.year || "",
-      rawTitle: parsed.rawTitle || fallbackCourse?.rawTitle || ""
+      rawTitle: parsed.rawTitle || fallbackCourse?.rawTitle || "",
+      ...(Array.isArray(fallbackCourse?.teachers) ? { teachers: fallbackCourse.teachers } : {})
     };
   }
 
@@ -1018,6 +1126,8 @@
     decodeHtml,
     extractCourses,
     extractCurrentCourse,
+    extractEnrollmentCertificateAction,
+    extractEnrollmentCourses,
     extractFormAction,
     extractAttendance,
     extractPortalCourses,

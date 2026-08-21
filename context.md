@@ -34,12 +34,11 @@ Arquivos principais ativos:
 
 - `popup.js`
   - Controla UI do popup.
-  - Captura HTML da aba ativa do SIGAA, incluindo frames.
   - Envia mensagem `refreshGrades` para o service worker.
   - Renderiza materias, busca, filtros, cards recolhiveis, tooltips, mudancas, notas e frequencia.
-  - Faz a escolha inicial entre dispositivo pessoal e compartilhado.
+  - Faz as escolhas iniciais de privacidade e atualizacao automatica.
   - Le o ultimo snapshot do armazenamento correspondente: persistente no modo pessoal e temporario no compartilhado enquanto a sessao atual do Chrome estiver ativa.
-  - Oferece configuracao de modo e botao para limpar dados academicos.
+  - Oferece configuracao de modo, atualizacao automatica e limpeza dos dados academicos.
 
 - `popup.css`
   - Design do popup.
@@ -48,10 +47,13 @@ Arquivos principais ativos:
 
 - `src/background.js`
   - Importa `privacy-storage.js`, `sigaa-parser.js`, `snapshot.js` e `sigaa-fetcher.js`.
-  - Recebe mensagem do popup e chama `SigaaFetcher.refreshAllGrades`.
+  - Captura o HTML da aba alvo do SIGAA, incluindo frames.
+  - Unifica os disparos manual e automatico antes de chamar `SigaaFetcher.refreshAllGrades`.
+  - Observa o carregamento concluido do Portal do Discente e mantem somente uma atualizacao ativa.
 
 - `src/privacy-storage.js`
   - Centraliza preferencia pessoal/compartilhado e o modo efetivo da janela.
+  - Mantem a preferencia de atualizacao automatica e o estado do onboarding.
   - Mantem dados pessoais em `chrome.storage.local` e dados compartilhados em `chrome.storage.session`.
   - Migra a chave antiga, limpa dados academicos e preserva somente a preferencia.
   - Normaliza a matricula, identifica o proprietario do snapshot e impede comparacao entre alunos diferentes.
@@ -151,11 +153,12 @@ Esses arquivos existem no projeto, mas nao estao referenciados no `manifest.json
 
 ### Popup
 
-- Na primeira abertura normal, pergunta uma unica vez se o dispositivo e pessoal ou compartilhado.
+- Na primeira abertura normal, pergunta uma unica vez se o dispositivo e pessoal ou compartilhado e, em seguida, se a atualizacao automatica deve ser ativada.
+- Usuarios que ja concluiram a escolha de privacidade recebem a nova preferencia desativada sem repetir o onboarding.
 - O modo pessoal e a opcao principal e preserva a experiencia persistente anterior.
 - O modo compartilhado mantem o painel temporario disponivel enquanto a mesma sessao do Chrome estiver aberta.
 - Janelas anonimas usam automaticamente o modo compartilhado, sem mudar a preferencia normal.
-- O painel de privacidade permite mudar o modo e limpar dados academicos.
+- O painel de Configuracoes permite mudar o modo, ativar/desativar a atualizacao automatica e limpar dados academicos.
 - A limpeza nao faz logout nem altera cookies do SIGAA.
 - Cards por materia.
 - Nome da materia encurtado genericamente:
@@ -188,6 +191,7 @@ Mecanismo atual:
   - `sigaa-grade-monitor:data:v3`
 - Preferencia nao sensivel:
   - `infosigaa:privacy:v1`
+  - `infosigaa:settings:v1`
 - Chaves temporarias:
   - `infosigaa:session:data:v3:regular`
   - `infosigaa:session:data:v3:incognito`
@@ -281,7 +285,7 @@ Modo compartilhado:
 
 Limpeza e migracao:
 
-- `Limpar dados` remove chaves v3, v2, snapshots v1 e dados de sessao, mas preserva a preferencia do dispositivo.
+- `Limpar dados` remove chaves v3, v2, snapshots v1 e dados de sessao, mas preserva as preferencias do dispositivo e de atualizacao automatica.
 - Escolher modo compartilhado apaga imediatamente os snapshots persistentes.
 - Voltar ao modo pessoal nao promove dados temporarios para armazenamento persistente.
 - A primeira escolha pessoal migra a chave v2 para v3; ate a escolha, dados antigos ficam ocultos.
@@ -293,10 +297,12 @@ Rodar os testes:
 
 ```powershell
 node tests\parser-smoke.js
+node tests\teacher-fetch-smoke.js
 node tests\snapshot-smoke.js
 node tests\active-page-smoke.js
 node tests\session-expiry-smoke.js
 node tests\privacy-storage-smoke.js
+node tests\auto-refresh-smoke.js
 node tests\identity-isolation-smoke.js
 node tests\privacy-ui-smoke.js
 node tests\fixtures-privacy.js

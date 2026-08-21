@@ -2,6 +2,14 @@
 <html lang="pt-BR">
   <head><meta charset="utf-8"><title>Portal Discente - Fixture sintética</title></head>
   <body>
+    <form id="menu:form_menu_discente" name="menu:form_menu_discente" action="/sigaa/portais/discente/discente.jsf" method="post">
+      <input type="hidden" name="menu:form_menu_discente" value="menu:form_menu_discente">
+      <input type="hidden" name="jscook_action" value="">
+      <input type="hidden" name="javax.faces.ViewState" value="TEST_VIEW_STATE">
+      <script>
+        var menu = [[null, 'Emitir Atestado de Matr&#237;cula', 'menu_test:A]#{ portalDiscente.atestadoMatricula }', 'menu:form_menu_discente', null]];
+      </script>
+    </form>
     <section id="turmas-do-semestre">
       <form id="form_acessarTurmaVirtual" name="form_acessarTurmaVirtual" action="/sigaa/portais/discente/discente.jsf" method="post">
         <input type="hidden" name="javax.faces.ViewState" value="TEST_VIEW_STATE">

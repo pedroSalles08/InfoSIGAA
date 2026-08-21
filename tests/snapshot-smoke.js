@@ -8,7 +8,8 @@ function makeCourse({
   year = "2026",
   value = "8,0",
   recentChangeStatus = "unchanged",
-  error = ""
+  error = "",
+  teachers
 }) {
   return {
     courseId,
@@ -26,6 +27,7 @@ function makeCourse({
     recentChangeStatus,
     changeStatus: recentChangeStatus,
     changes: [],
+    ...(Array.isArray(teachers) ? { teachers } : {}),
     ...(error ? { error } : {})
   };
 }
@@ -34,7 +36,8 @@ const courseA = makeCourse({
   courseId: "TEST_TURMA_1",
   code: "99990001",
   name: "FÍSICA",
-  value: "8,0"
+  value: "8,0",
+  teachers: ["DANIELA SCHITTLER"]
 });
 const courseB = makeCourse({
   courseId: "TEST_TURMA_2",
@@ -65,6 +68,7 @@ assert.strictEqual(merged.courses[0].periods[0].grades[0].value, "9,5");
 assert.strictEqual(merged.courses[0].periods[0].grades[0].changeType, "changed");
 assert.strictEqual(merged.courses[0].periods[0].grades[0].previousValue, "8,0");
 assert.strictEqual(merged.courses[0].recentChangeStatus, "changed");
+assert.deepStrictEqual(merged.courses[0].teachers, ["DANIELA SCHITTLER"]);
 assert.strictEqual(merged.courses[1], courseB);
 assert.strictEqual(merged.courses[1].recentChangeStatus, "new");
 

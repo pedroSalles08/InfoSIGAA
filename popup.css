@@ -196,9 +196,18 @@ h1 {
 }
 
 .settings-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   min-height: 32px;
   padding-inline: 9px;
   font-size: var(--text-xs);
+}
+
+.settings-button svg {
+  width: 14px;
+  height: 14px;
+  fill: currentcolor;
 }
 
 .privacy-summary {
@@ -402,6 +411,13 @@ h1 {
   font-size: var(--text-sm);
 }
 
+.settings-option-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
 .settings-danger {
   align-items: center;
   margin-top: var(--space-6);
@@ -527,6 +543,10 @@ h1 {
 
 .status-chip.no-grades::before {
   background: var(--info);
+}
+
+.status-chip.absence::before {
+  background: var(--warning);
 }
 
 .status-chip.error::before {

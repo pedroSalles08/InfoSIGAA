@@ -135,6 +135,7 @@ const hasReleaseAsset = releaseAssetPattern.test(installation);
 const hasPendingRelease = /data-download-status="pending"/.test(installation) && /Aguardando primeira Release/.test(installation);
 assert.ok(hasReleaseAsset || hasPendingRelease, "A página deve ter um asset versionado real ou declarar honestamente que a Release está pendente.");
 assert.match(support, /mailto:infosigaa@protonmail\.com/, "O suporte deve possuir contato acionável.");
+assert.match(support, /Portal do Discente termina de carregar[\s\S]*Configurações/, "O suporte deve explicar a atualização automática opcional.");
 assert.match(privacy, /chrome\.storage\.local/, "A política deve explicar o armazenamento local.");
 assert.match(privacy, /chrome\.storage\.session/, "A política deve explicar o armazenamento temporário.");
 assert.match(privacy, /modo compartilhado/i, "A política deve explicar a proteção em dispositivo compartilhado.");
@@ -142,6 +143,8 @@ assert.match(privacy, /mesma sessão do Chrome estiver ativa/i, "A política dev
 assert.match(privacy, /uma atualização detecta logout/i, "A política deve explicar quando os dados temporários são removidos.");
 assert.match(privacy, /Limpar dados/, "A política deve explicar o controle de limpeza.");
 assert.match(privacy, /não solicita nem armazena sua senha/i, "A política deve explicar o tratamento de senha.");
+assert.match(privacy, /atualiza os dados em segundo plano ao entrar no Portal do Discente/, "A política deve descrever o disparo automático autorizado.");
+assert.match(installation, /Escolha se deseja atualizar os dados automaticamente/, "O primeiro uso deve documentar a segunda escolha.");
 assert.match(installation, /Permitir no modo anônimo/, "A instalação deve explicar como habilitar o uso anônimo.");
 
 [

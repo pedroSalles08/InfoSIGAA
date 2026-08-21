@@ -66,6 +66,37 @@
     return activeAttendance;
   }
 
+  function getCourseTeachers(course, enrollmentCourses) {
+    const code = String(course?.code || "").trim();
+
+    if (code) {
+      const codeMatches = enrollmentCourses.filter((item) => String(item?.code || "").trim() === code);
+
+      if (codeMatches.length === 1) {
+        return codeMatches[0].teachers || [];
+      }
+    }
+
+    const name = normalizeCourseText(course?.name || course?.rawTitle);
+
+    if (!name) {
+      return [];
+    }
+
+    const nameMatches = enrollmentCourses.filter(
+      (item) => normalizeCourseText(item?.name) === name
+    );
+
+    return nameMatches.length === 1 ? nameMatches[0].teachers || [] : [];
+  }
+
+  function attachCourseTeachers(course, enrollmentCourses) {
+    return {
+      ...course,
+      teachers: getCourseTeachers(course, enrollmentCourses)
+    };
+  }
+
   async function fetchHtml(url, options) {
     const response = await fetch(url, {
       credentials: "include",
@@ -286,6 +317,32 @@
         );
       }
 
+      let enrollmentCourses = [];
+
+      if (initial.type === "portal") {
+        const certificateAction = parser.extractEnrollmentCertificateAction(indexHtml);
+
+        if (certificateAction) {
+          try {
+            const certificateHtml = await postJsf(
+              indexHtml,
+              certificateAction.formId,
+              certificateAction.params
+            );
+            enrollmentCourses = parser.extractEnrollmentCourses(certificateHtml);
+          } catch (error) {
+            if (isSessionExpiredError(error)) {
+              throw error;
+            }
+
+            console.warn(
+              "[InfoSIGAA] Nao foi possivel obter os docentes no atestado de matricula:",
+              error?.message || error
+            );
+          }
+        }
+      }
+
       const results = [];
       let navigationHtml = indexHtml;
 
@@ -296,7 +353,10 @@
             initial.type === "portal"
               ? parser.extractPortalCourses(sourceHtml)
               : parser.extractCourses(sourceHtml);
-          const course = freshCourses.find((item) => item.courseId === initialCourse.courseId) || initialCourse;
+          const course = attachCourseTeachers(
+            freshCourses.find((item) => item.courseId === initialCourse.courseId) || initialCourse,
+            enrollmentCourses
+          );
           const courseHtml = await postJsf(sourceHtml, course.formId, course.params);
 
           if (initial.type !== "portal") {

@@ -30,7 +30,7 @@ O Google Chrome é o único navegador oficialmente suportado no momento. A insta
 2. Extraia o pacote em uma pasta permanente.
 3. Abra `chrome://extensions`, ative o modo do desenvolvedor e escolha **Carregar sem compactação**.
 4. Selecione a pasta extraída que contém o `manifest.json`.
-5. Entre no SIGAA, abra o Portal do Discente e clique em **Atualizar** no painel do InfoSIGAA.
+5. Conclua as duas escolhas do primeiro uso, entre no SIGAA e abra o Portal do Discente. Se preferir não ativar a atualização automática, use **Atualizar** no painel.
 
 Não mova nem exclua a pasta enquanto a extensão estiver instalada. As atualizações também são manuais; o guia permanente explica como substituir os arquivos e recarregar a extensão sem criar outra instalação. Para usuários, o pacote correto é o indicado nessa página — não os arquivos automáticos “Source code” do GitHub.
 
@@ -43,6 +43,7 @@ Não mova nem exclua a pasta enquanto a extensão estiver instalada. As atualiza
 - No modo pessoal, mantém o último resultado válido em `chrome.storage.local` e compara cada atualização com o snapshot anterior.
 - No modo compartilhado e em janelas anônimas, mantém dados acadêmicos apenas temporariamente durante a sessão atual do Chrome; o painel pode ser reaberto enquanto essa sessão estiver ativa.
 - Oferece controle para limpar notas, frequência e histórico de mudanças sem alterar a sessão do SIGAA.
+- Pode atualizar os dados automaticamente, em segundo plano, quando o Portal do Discente termina de carregar.
 - Destaca notas novas, alteradas ou removidas em relação ao snapshot anterior.
 - No modo pessoal, em caso de sessão expirada ou falha total da atualização, mantém o último snapshot válido e orienta o usuário a entrar novamente. No modo compartilhado, remove o painel temporário nessas situações.
 - Se uma matéria falhar, registra o erro apenas nela e mantém o resultado das demais.
@@ -53,7 +54,7 @@ Não mova nem exclua a pasta enquanto a extensão estiver instalada. As atualiza
 - Não faz login automaticamente nem solicita ou armazena senha.
 - Não salva cookies manualmente.
 - Não envia notas para um servidor próprio do projeto.
-- Não executa verificações automáticas em segundo plano.
+- Não faz verificações periódicas nem consulta o SIGAA fora da entrada no Portal do Discente ou de uma atualização manual.
 - Não envia notificações do sistema operacional.
 
 ## Limitações conhecidas
@@ -66,7 +67,7 @@ Não mova nem exclua a pasta enquanto a extensão estiver instalada. As atualiza
 
 ## Privacidade
 
-O InfoSIGAA usa somente a sessão já aberta no navegador e não possui backend para armazenar notas. No primeiro uso, a extensão pergunta se o dispositivo é pessoal ou compartilhado.
+O InfoSIGAA usa somente a sessão já aberta no navegador e não possui backend para armazenar notas. No primeiro uso, a extensão pergunta se o dispositivo é pessoal ou compartilhado e se a atualização automática deve ser ativada.
 
 No modo pessoal, o último painel fica salvo no perfil do Chrome. No modo compartilhado, os dados acadêmicos ficam apenas na memória do navegador e podem ser reabertos enquanto a mesma sessão do Chrome estiver ativa; eles são eliminados quando o Chrome é encerrado, a extensão é recarregada ou uma atualização detectar logout. Se uma atualização identificar outra matrícula, o painel anterior não é usado para comparar dados. Janelas anônimas sempre usam essa proteção temporária. O botão **Limpar dados** remove os dados da extensão, mas não encerra a sessão do SIGAA. Consulte a **[política de privacidade completa](https://pedrosalles08.github.io/InfoSIGAA/privacidade/)** para conhecer todos os cuidados recomendados.
 
@@ -75,8 +76,8 @@ No modo pessoal, o último painel fica salvo no perfil do Chrome. No modo compar
 O fluxo principal usa apenas os módulos incluídos pelo manifesto e pelo pacote de distribuição:
 
 1. O usuário entra no SIGAA e abre uma página do sistema.
-2. O popup lê a página ativa com `chrome.tabs` e `chrome.scripting` quando **Atualizar** é acionado.
-3. O service worker recebe o pedido e coordena a atualização.
+2. O popup solicita uma atualização manual ou o service worker detecta o carregamento concluído do Portal do Discente.
+3. O service worker captura a aba correspondente com `chrome.tabs` e `chrome.scripting` e coordena uma única atualização por vez.
 4. O módulo de busca navega pelas páginas necessárias usando a sessão existente.
 5. O parser transforma formulários e HTML do SIGAA em matérias, notas, resumos e frequência.
 6. A matrícula atual é validada antes de qualquer comparação para impedir mistura entre alunos.
@@ -86,8 +87,8 @@ O fluxo principal usa apenas os módulos incluídos pelo manifesto e pelo pacote
 | --- | --- |
 | `manifest.json` | Declara o popup, o service worker, as permissões e o domínio autorizado. |
 | `popup.html`, `popup.css`, `popup.js` | Estrutura, apresentação e interação do painel. |
-| `src/background.js` | Recebe a solicitação do popup e coordena a busca no service worker. |
-| `src/privacy-storage.js` | Centraliza modo pessoal/compartilhado, migração, identidade e limpeza dos dados acadêmicos. |
+| `src/background.js` | Unifica os disparos manual e automático, captura a aba correspondente e coordena a busca no service worker. |
+| `src/privacy-storage.js` | Centraliza preferências, modo pessoal/compartilhado, migração, identidade e limpeza dos dados acadêmicos. |
 | `src/sigaa-fetcher.js` | Faz as requisições autenticadas, percorre matérias e trata falhas de sessão ou de matéria. |
 | `src/sigaa-parser.js` | Interpreta páginas, formulários, tabelas de notas e dados de frequência. |
 | `src/snapshot.js` | Mescla atualizações e identifica mudanças entre resultados. |
@@ -127,10 +128,12 @@ Com Node.js instalado, execute todos os testes de fumaça existentes:
 
 ```bash
 node tests/parser-smoke.js
+node tests/teacher-fetch-smoke.js
 node tests/snapshot-smoke.js
 node tests/active-page-smoke.js
 node tests/session-expiry-smoke.js
 node tests/privacy-storage-smoke.js
+node tests/auto-refresh-smoke.js
 node tests/identity-isolation-smoke.js
 node tests/privacy-ui-smoke.js
 node tests/fixtures-privacy.js
@@ -138,7 +141,7 @@ node tests/website-smoke.js
 node tests/package-smoke.js
 ```
 
-Eles verificam parsing de páginas e formulários, comparação e mesclagem de snapshots, atualização pela página ativa, expiração de sessão, modos de armazenamento, isolamento entre matrículas, limpeza de dados, privacidade das fixtures, estrutura e links internos do website, além do conteúdo, versão e checksum do pacote. São testes locais de fumaça, não uma afirmação de cobertura completa nem uma suíte end-to-end no SIGAA real.
+Eles verificam parsing de páginas e formulários, comparação e mesclagem de snapshots, atualização manual e automática, trava de concorrência, expiração de sessão, modos de armazenamento, isolamento entre matrículas, limpeza de dados, privacidade das fixtures, estrutura e links internos do website, além do conteúdo, versão e checksum do pacote. São testes locais de fumaça, não uma afirmação de cobertura completa nem uma suíte end-to-end no SIGAA real.
 
 As fixtures públicas são pequenas e sintéticas. Capturas reais usadas para diagnóstico devem ficar em `fixtures/private/`, diretório ignorado pelo Git, e nunca devem ser publicadas com nome, matrícula, cookies, `ViewState` real ou outras informações pessoais.
 
