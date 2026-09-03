@@ -80,29 +80,13 @@ async function run() {
   assert.strictEqual(storage.getEffectiveMode("personal", true), storage.PUBLIC_MODE);
   assert.strictEqual(storage.getEffectiveMode("personal", false), storage.PERSONAL_MODE);
 
-  assert.deepStrictEqual(await storage.getAutoRefreshState(), {
-    autoRefreshEnabled: false,
-    autoRefreshConfigured: false,
-    autoRefreshOnboardingPending: false
-  });
-  await storage.markAutoRefreshOnboardingPending();
-  assert.deepStrictEqual(await storage.getAutoRefreshState(), {
-    autoRefreshEnabled: false,
-    autoRefreshConfigured: false,
-    autoRefreshOnboardingPending: true
-  });
-  await storage.setAutoRefreshEnabled(true);
-  assert.deepStrictEqual(await storage.getAutoRefreshState(), {
-    autoRefreshEnabled: true,
-    autoRefreshConfigured: true,
-    autoRefreshOnboardingPending: false
-  });
-
   await storage.setDeviceMode(storage.PERSONAL_MODE);
   assert.strictEqual(local.values[storage.PRIVACY_KEY].deviceMode, storage.PERSONAL_MODE);
   assert.strictEqual(local.values[legacyKey], undefined);
   assert.strictEqual(local.values[legacySnapshotKey], undefined);
   assert.strictEqual(local.values[storage.DATA_KEY].owner.enrollment, "00000000000");
+  assert.strictEqual(local.values[storage.DATA_KEY].schemaVersion, 4);
+  assert.strictEqual(local.values[storage.DATA_KEY].needsAcademicModelRefresh, true);
 
   const firstStudent = dataFor("0000000000");
   const sameStudent = dataFor("000.000.000-0", "B");
@@ -112,6 +96,13 @@ async function run() {
 
   await storage.saveData({ mode: storage.PERSONAL_MODE, incognito: false }, firstStudent);
   assert.strictEqual(local.values[storage.DATA_KEY].owner.enrollment, "0000000000");
+
+  const preferences = await storage.setSemesterFocus("2026", 2);
+  assert.deepStrictEqual(preferences, { semesterFocusByYear: { 2026: 2 } });
+  assert.deepStrictEqual(await storage.getUiPreferences(), preferences);
+  await storage.setSemesterFocus("2026", 99);
+  assert.strictEqual((await storage.getUiPreferences()).semesterFocusByYear[2026], 0);
+  assert.strictEqual(local.values[storage.DATA_KEY].owner.enrollment, "0000000000", "Salvar o período não deve regravar o snapshot acadêmico.");
 
   await storage.setDeviceMode(storage.PUBLIC_MODE);
   assert.strictEqual(local.values[storage.DATA_KEY], undefined);
@@ -133,15 +124,6 @@ async function run() {
   assert.strictEqual(await storage.loadData(publicContext), null);
   assert.strictEqual(await storage.loadData(incognitoContext), null);
   assert.strictEqual(local.values[storage.PRIVACY_KEY].deviceMode, storage.PUBLIC_MODE);
-  assert.strictEqual(local.values[storage.SETTINGS_KEY].autoRefreshEnabled, true);
-
-  delete local.values[storage.SETTINGS_KEY];
-  await storage.initializeAutoRefreshForExistingUser();
-  assert.deepStrictEqual(await storage.getAutoRefreshState(), {
-    autoRefreshEnabled: false,
-    autoRefreshConfigured: true,
-    autoRefreshOnboardingPending: false
-  });
 
   console.log("privacy-storage-smoke-ok");
 }

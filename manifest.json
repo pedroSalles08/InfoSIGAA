@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "InfoSIGAA",
-  "description": "Mostra as notas do aluno no SIGAA em um painel local da extensao.",
-  "version": "0.1.1",
+  "description": "Exibe avaliações, resultados semestrais, média anual, faltas e frequência do SIGAA em um dashboard local.",
+  "version": "0.2.0",
   "incognito": "split",
   "icons": {
     "16": "icons/icon-16.png",
@@ -23,5 +23,13 @@
   },
   "background": {
     "service_worker": "src/background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://sig.iffarroupilha.edu.br/sigaa/*"],
+      "js": ["src/sigaa-lock.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
 }

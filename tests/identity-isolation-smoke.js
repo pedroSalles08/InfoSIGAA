@@ -108,8 +108,8 @@ async function run() {
   assert.strictEqual(local.values[storage.DATA_KEY].owner.enrollment, "0000000000");
 
   const expired = await globalThis.SigaaFetcher.refreshAllGrades(loginPage, publicContext);
-  assert.strictEqual(expired.cachedData, null, "O modo público não deve devolver cache em falha de autenticação.");
-  assert.strictEqual(session.values[publicKey], undefined, "A sessão temporária deve ser apagada ao detectar logout.");
+  assert.strictEqual(expired.cachedData.owner.enrollment, "0000000000", "O logout deve preservar o snapshot temporário válido.");
+  assert.strictEqual(session.values[publicKey].owner.enrollment, "0000000000", "O logout não deve substituir nem apagar o snapshot válido.");
 
   console.log("identity-isolation-smoke-ok");
 }

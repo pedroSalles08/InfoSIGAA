@@ -24,7 +24,7 @@
 
     <main id="conteudo">
       <section class="page-hero" aria-labelledby="page-title">
-        <div class="container narrow-container"><p class="eyebrow">Privacidade</p><h1 id="page-title">Política de privacidade</h1><p>Esta política explica separadamente como o website e a extensão InfoSIGAA lidam com informações.</p><p class="updated-date">Última atualização: 10 de agosto de 2026</p></div>
+        <div class="container narrow-container"><p class="eyebrow">Privacidade</p><h1 id="page-title">Política de privacidade</h1><p>Esta política explica separadamente como o website e a extensão InfoSIGAA lidam com informações.</p><p class="updated-date">Última atualização: 22 de agosto de 2026</p></div>
       </section>
 
       <div class="container page-layout legal-layout">
@@ -41,13 +41,13 @@
 
           <section id="extensao">
             <p class="eyebrow">01 · Extensão</p><h2>Como a extensão funciona</h2>
-            <p>A extensão funciona apenas quando você já está autenticado no SIGAA do IFFarroupilha. Ela usa a sessão existente no navegador para acessar as páginas necessárias, organizar matérias, notas e frequência e exibir essas informações no popup do InfoSIGAA.</p>
+            <p>A extensão funciona apenas quando você já está autenticado no SIGAA do IFFarroupilha. Ela usa a sessão existente no navegador para acessar as páginas necessárias, organizar matérias, notas e frequência e exibir essas informações no dashboard local do InfoSIGAA.</p>
             <ul>
               <li>Não faz login automaticamente.</li>
               <li>Não solicita, lê ou armazena sua senha.</li>
               <li>Não salva cookies manualmente.</li>
               <li>Não envia notas, frequência ou identificação do estudante para servidor externo do projeto.</li>
-              <li>Quando você autoriza, atualiza os dados em segundo plano ao entrar no Portal do Discente; não faz verificações periódicas fora desse evento.</li>
+              <li>Consulta o SIGAA somente quando você abre o painel e inicia uma atualização manual; não faz verificações periódicas.</li>
             </ul>
           </section>
 
@@ -63,9 +63,9 @@
 
           <section id="armazenamento">
             <p class="eyebrow">03 · Armazenamento</p><h2>Armazenamento e controle</h2>
-            <p>Na primeira abertura, o InfoSIGAA pergunta se o dispositivo é pessoal ou compartilhado e se você deseja ativar a atualização automática. Essas preferências podem ser alteradas posteriormente em <strong>Configurações</strong>.</p>
+            <p>Na primeira abertura, o InfoSIGAA pergunta se o dispositivo é pessoal ou compartilhado. Essa preferência pode ser alterada posteriormente em <strong>Configurações</strong>.</p>
             <p>No <strong>modo pessoal</strong>, o último resultado válido é armazenado em <code>chrome.storage.local</code>, dentro do perfil do Chrome. Ele não é sincronizado entre computadores ou perfis e normalmente é removido quando a extensão é desinstalada. Quando uma sessão expira ou uma atualização falha por completo, o último painel válido é preservado.</p>
-            <p>No <strong>modo compartilhado</strong>, notas, nomes, matrículas e frequência não são gravados permanentemente. O painel fica em <code>chrome.storage.session</code> e pode ser reaberto enquanto a mesma sessão do Chrome estiver ativa. Ele é removido quando o Chrome é encerrado, a extensão é recarregada ou uma atualização detecta logout. Se uma atualização identificar outra matrícula, os dados anteriores não são comparados nem mesclados com os dados do novo aluno.</p>
+            <p>No <strong>modo compartilhado</strong>, notas, nomes, matrículas e frequência não são gravados permanentemente. O painel fica em <code>chrome.storage.session</code> e pode ser reaberto enquanto a mesma sessão do Chrome estiver ativa. Ele é removido quando o Chrome é encerrado ou a extensão é recarregada. Logout, cancelamento ou falha de atualização preservam o snapshot temporário anterior. Se uma atualização identificar outra matrícula, os dados anteriores não são comparados nem mesclados com os dados do novo aluno.</p>
             <p>Janelas anônimas sempre usam o modo compartilhado. A extensão não grava os dados acadêmicos dessa janela em <code>chrome.storage.local</code>, mesmo que o dispositivo esteja configurado como pessoal.</p>
             <p>O botão <strong>Limpar dados</strong> remove notas, frequência e histórico de mudanças armazenados pela extensão. Ele não apaga cookies, não faz logout e não encerra a sessão do SIGAA; em computadores públicos, saia também do SIGAA ao terminar.</p>
           </section>

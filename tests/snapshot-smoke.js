@@ -132,4 +132,48 @@ const fullRefresh = snapshot.annotateChanges(
 assert.strictEqual(fullRefresh.courses[0].periods[0].grades[0].changeType, "changed");
 assert.strictEqual(fullRefresh.courses[0].periods[0].grades[0].previousValue, "8,0");
 
+function semanticValue(sourceKey, role, value) {
+  return {
+    sourceKey,
+    role,
+    label: "NOTA",
+    fullName: "",
+    value,
+    rawValue: value,
+    availability: "available",
+    evidence: role === "assessment" ? "evaluation-id" : "unit-column",
+    finality: "unknown"
+  };
+}
+
+function semanticCourse(assessment, semesterResult) {
+  return {
+    courseId: "SEMANTIC_1",
+    code: "99990100",
+    name: "REDES",
+    periods: [],
+    summary: {},
+    performance: {
+      semesters: [{
+        number: 1,
+        label: "1º semestre",
+        assessments: [semanticValue("semester:1:101:assessment", "assessment", assessment)],
+        result: semanticValue("semester:1:result", "semester_result", semesterResult)
+      }],
+      annual: {},
+      exam: null,
+      unclassified: []
+    }
+  };
+}
+
+const semanticChanges = snapshot.annotateChanges(
+  { ok: true, updatedAt: "2026-08-02T10:00:00.000Z", courses: [semanticCourse("8,5", "7,5")] },
+  { ok: true, courses: [semanticCourse("8,0", "7,0")] }
+);
+assert.deepStrictEqual(
+  semanticChanges.courses[0].changes.map((change) => change.field).sort(),
+  ["semester:1:101:assessment", "semester:1:result"]
+);
+
 console.log("snapshot-smoke-ok");

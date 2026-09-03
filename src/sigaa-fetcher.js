@@ -5,7 +5,7 @@
   const privacyStorage = globalThis.InfoSigaaPrivacyStorage || (
     typeof require === "function" ? require("./privacy-storage.js") : null
   );
-  const STORAGE_KEY = privacyStorage?.DATA_KEY || "sigaa-grade-monitor:data:v3";
+  const STORAGE_KEY = privacyStorage?.DATA_KEY || "sigaa-grade-monitor:data:v4";
   const MAX_COURSES = 30;
   const SESSION_EXPIRED_CODE = "SIGAA_SESSION_EXPIRED";
 
@@ -19,6 +19,19 @@
 
   function isSessionExpiredError(error) {
     return error?.code === SESSION_EXPIRED_CODE;
+  }
+
+  function isAbortError(error) {
+    return error?.name === "AbortError" || error?.code === "INFO_SIGAA_ABORTED";
+  }
+
+  function throwIfAborted(signal) {
+    if (signal?.aborted) {
+      const error = new Error("Atualização cancelada. Os dados anteriores foram preservados.");
+      error.name = "AbortError";
+      error.code = "INFO_SIGAA_ABORTED";
+      throw error;
+    }
   }
 
   function absoluteSigaaUrl(action) {
@@ -132,7 +145,7 @@
     return body;
   }
 
-  async function postJsf(html, formId, params) {
+  async function postJsf(html, formId, params, signal) {
     const action = globalThis.SigaaParser.extractFormAction(html, formId);
     const payload = globalThis.SigaaParser.buildFormPayload(html, formId, params);
 
@@ -141,7 +154,8 @@
       headers: {
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
       },
-      body: encodePayload(payload)
+      body: encodePayload(payload),
+      signal
     });
   }
 
@@ -171,10 +185,6 @@
   }
 
   function getCachedData(previousData, privacyContext) {
-    if (isPublicMode(privacyContext)) {
-      return null;
-    }
-
     return previousData?.ok && Array.isArray(previousData.courses) ? previousData : null;
   }
 
@@ -227,7 +237,7 @@
     const saved = await saveStoredGrades(ownedData, privacyContext);
 
     if (!saved) {
-      throw new Error("Nao foi possivel salvar os dados atualizados.");
+      throw new Error("Não foi possível salvar os dados atualizados.");
     }
 
     return ownedData;
@@ -249,31 +259,31 @@
     };
   }
 
-  async function refreshAllGrades(activePage, requestedPrivacyContext) {
+  async function refreshAllGrades(activePage, requestedPrivacyContext, options = {}) {
     const parser = globalThis.SigaaParser;
+    const signal = options.signal;
+    const onProgress = typeof options.onProgress === "function" ? options.onProgress : () => {};
     const privacyContext = normalizePrivacyContext(requestedPrivacyContext);
     const previousData = await loadStoredGrades(privacyContext);
     const startedAt = new Date().toISOString();
 
     try {
+      throwIfAborted(signal);
+      onProgress({ phase: "verifying_session", completedCourses: 0, totalCourses: 0, currentCourseName: "" });
       const hasActiveSigaaPage =
         activePage?.html &&
         /^https:\/\/sig\.iffarroupilha\.edu\.br\/sigaa\//.test(activePage.url || "");
 
       if (hasActiveSigaaPage && parser.isAuthenticationPage(activePage.html, activePage.url, 200)) {
-        if (isPublicMode(privacyContext)) {
-          await discardCurrentData(privacyContext);
-        }
-
         return buildAuthenticationResult(previousData, startedAt, privacyContext);
       }
 
-      const authenticatedIndexHtml = await fetchHtml(BASE_URL);
+      const authenticatedIndexHtml = await fetchHtml(BASE_URL, { signal });
       const activeHtml = hasActiveSigaaPage ? getActivePageHtml(activePage) : "";
       const indexHtml = hasActiveSigaaPage ? activePage.html : authenticatedIndexHtml;
       const activeGrades = hasActiveSigaaPage
         ? parser.parseGradesPage(indexHtml, {
-            rawTitle: activePage.title || "Pagina atual"
+            rawTitle: activePage.title || "Página atual"
           })
         : null;
       const activeAttendance = hasActiveSigaaPage ? parser.extractAttendance(activeHtml || indexHtml) : null;
@@ -286,6 +296,7 @@
           studentName: activeGrades.studentName,
           enrollment: activeGrades.enrollment,
           periods: activeGrades.periods,
+          performance: activeGrades.performance,
           summary: activeGrades.summary,
           attendance: activeAttendance,
           updatedAt
@@ -306,13 +317,19 @@
 
       const initial = getInitialCourses(parser, indexHtml);
       const initialCourses = initial.courses;
+      onProgress({
+        phase: "collecting_courses",
+        completedCourses: 0,
+        totalCourses: Math.min(initialCourses.length, MAX_COURSES),
+        currentCourseName: ""
+      });
 
       if (initialCourses.length === 0) {
         return buildRefreshFailure(
           previousData,
           startedAt,
           "refresh_failed",
-          "Nao encontrei a lista de materias. Abra o portal discente do SIGAA e tente novamente.",
+          "Não foi possível encontrar a lista de disciplinas. Abra o Portal do Discente e tente novamente.",
           privacyContext
         );
       }
@@ -327,7 +344,8 @@
             const certificateHtml = await postJsf(
               indexHtml,
               certificateAction.formId,
-              certificateAction.params
+              certificateAction.params,
+              signal
             );
             enrollmentCourses = parser.extractEnrollmentCourses(certificateHtml);
           } catch (error) {
@@ -336,7 +354,7 @@
             }
 
             console.warn(
-              "[InfoSIGAA] Nao foi possivel obter os docentes no atestado de matricula:",
+              "[InfoSIGAA] Não foi possível obter os docentes no atestado de matrícula:",
               error?.message || error
             );
           }
@@ -346,7 +364,16 @@
       const results = [];
       let navigationHtml = indexHtml;
 
-      for (const initialCourse of initialCourses.slice(0, MAX_COURSES)) {
+      const selectedCourses = initialCourses.slice(0, MAX_COURSES);
+      for (let courseIndex = 0; courseIndex < selectedCourses.length; courseIndex++) {
+        const initialCourse = selectedCourses[courseIndex];
+        throwIfAborted(signal);
+        onProgress({
+          phase: "collecting_course",
+          completedCourses: courseIndex,
+          totalCourses: selectedCourses.length,
+          currentCourseName: initialCourse.name || initialCourse.rawTitle || "Disciplina"
+        });
         try {
           const sourceHtml = initial.type === "portal" ? indexHtml : navigationHtml;
           const freshCourses =
@@ -357,7 +384,7 @@
             freshCourses.find((item) => item.courseId === initialCourse.courseId) || initialCourse,
             enrollmentCourses
           );
-          const courseHtml = await postJsf(sourceHtml, course.formId, course.params);
+          const courseHtml = await postJsf(sourceHtml, course.formId, course.params, signal);
 
           if (initial.type !== "portal") {
             navigationHtml = courseHtml;
@@ -377,12 +404,12 @@
               periods: [],
               summary: {},
               attendance,
-              error: "Nao encontrei a opcao Ver Notas nesta materia."
+              error: "O SIGAA não exibiu a opção Ver Notas nesta disciplina."
             });
             continue;
           }
 
-          const gradesHtml = await postJsf(courseHtml, verNotasAction.formId, verNotasAction.params);
+          const gradesHtml = await postJsf(courseHtml, verNotasAction.formId, verNotasAction.params, signal);
           const parsedGrades = parser.parseGradesPage(gradesHtml, course);
 
           if (!parsedGrades.tableFound) {
@@ -418,12 +445,13 @@
             studentName: parsedGrades.studentName,
             enrollment: parsedGrades.enrollment,
             periods: parsedGrades.periods,
+            performance: parsedGrades.performance,
             summary: parsedGrades.summary,
             attendance,
             updatedAt: new Date().toISOString()
           });
         } catch (error) {
-          if (isSessionExpiredError(error)) {
+          if (isSessionExpiredError(error) || isAbortError(error)) {
             throw error;
           }
 
@@ -431,9 +459,16 @@
             ...initialCourse,
             periods: [],
             summary: {},
-            error: error.message || "Falha ao buscar notas desta materia."
+            error: error.message || "Não foi possível buscar as notas desta disciplina."
           });
         }
+
+        onProgress({
+          phase: "collecting_course",
+          completedCourses: courseIndex + 1,
+          totalCourses: selectedCourses.length,
+          currentCourseName: initialCourse.name || initialCourse.rawTitle || "Disciplina"
+        });
       }
 
       if (results.every((course) => course.error)) {
@@ -441,16 +476,16 @@
           previousData,
           startedAt,
           "refresh_failed",
-          isPublicMode(privacyContext)
-            ? "Nao foi possivel atualizar nenhuma materia. Tente novamente."
-            : "Nao foi possivel atualizar nenhuma materia. Os ultimos dados validos foram preservados.",
+          "Não foi possível atualizar nenhuma disciplina. Os dados anteriores foram preservados.",
           privacyContext
         );
       }
 
-      const currentData = {
+      const preliminaryData = {
         ok: true,
         status: "ok",
+        schemaVersion: 4,
+        needsAcademicModelRefresh: false,
         updatedAt: new Date().toISOString(),
         courses: results,
         errors: results.filter((course) => course.error).length,
@@ -458,9 +493,32 @@
       };
       const matchingPrevious = await getPreviousForCurrent(
         previousData,
-        currentData,
+        preliminaryData,
         privacyContext
       );
+      const courses = results.map((course) => {
+        const previousIndex = globalThis.SigaaSnapshot.findCourseIndex?.(matchingPrevious?.courses || [], course) ?? -1;
+        const previousCourse = previousIndex >= 0 ? matchingPrevious?.courses?.[previousIndex] : null;
+        if (!course.error || !matchingPrevious) {
+          return course;
+        }
+
+        return previousCourse
+          ? { ...previousCourse, stale: true, refreshError: course.error }
+          : course;
+      });
+      const currentData = {
+        ...preliminaryData,
+        courses,
+        preferences: matchingPrevious?.preferences || previousData?.preferences || {},
+        errors: courses.filter((course) => course.error || course.refreshError).length
+      };
+      onProgress({
+        phase: "saving",
+        completedCourses: selectedCourses.length,
+        totalCourses: selectedCourses.length,
+        currentCourseName: ""
+      });
       const data = globalThis.SigaaSnapshot.annotateChanges(
         currentData,
         matchingPrevious
@@ -469,10 +527,6 @@
       return persistSuccessfulData(data, privacyContext);
     } catch (error) {
       if (isSessionExpiredError(error)) {
-        if (isPublicMode(privacyContext)) {
-          await discardCurrentData(privacyContext);
-        }
-
         return buildAuthenticationResult(previousData, startedAt, privacyContext);
       }
 

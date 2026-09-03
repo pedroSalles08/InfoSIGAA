@@ -1,7 +1,7 @@
 const assert = require("assert");
 const fs = require("fs");
 
-const storageKey = "sigaa-grade-monitor:data:v3";
+const storageKey = "sigaa-grade-monitor:data:v4";
 let savedData = null;
 
 global.chrome = {
@@ -70,7 +70,7 @@ async function run() {
   assert.strictEqual(result.courses.length, 1);
   assert.deepStrictEqual(result.courses[0].teachers, ["DANIELA SCHITTLER"]);
   assert.deepStrictEqual(savedData.courses[0].teachers, ["DANIELA SCHITTLER"]);
-  assert.strictEqual(requests.length, 4, "A captura consolidada deve adicionar exatamente uma requisicao.");
+  assert.strictEqual(requests.length, 4, "A captura consolidada deve buscar atestado e notas sem abrir a frequência diária.");
   assert.match(requests[1].body, /jscook_action=menu_test/);
   assert.strictEqual(responses.length, 0);
 

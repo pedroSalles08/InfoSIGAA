@@ -177,6 +177,49 @@ assert.strictEqual(parsedGenericGrades.summary.mediaAnual, "8,2");
 assert.strictEqual(parsedGenericGrades.summary.resultado, "APROVADO");
 assert.strictEqual(parsedGenericGrades.summary.faltas, "4");
 
+const syntheticSemanticGradesPage = `
+  <html><body>
+    <h3>03009998 - REDES (80h) - Turma: 3B (2026)</h3>
+    <table>
+      <tr><th colspan="12">Alunos Matriculados</th></tr>
+      <tr>
+        <th rowspan="2">Matricula</th><th rowspan="2">Nome</th>
+        <th colspan="3">1o Semestre</th><th colspan="2">2o Semestre</th><th>Exame</th>
+        <th rowspan="2">Media Anual</th><th rowspan="2">Resultado</th><th rowspan="2">Faltas</th><th rowspan="2">Sit.</th>
+      </tr>
+      <tr>
+        <th id="aval_101" title="Prova 1">P1</th><th id="aval_102" title="Avaliação chamada NOTA">NOTA</th><th id="unid">NOTA</th>
+        <th id="aval_201">P2</th><th id="unid">NOTA</th><th id="unid">NOTA</th>
+      </tr>
+      <tr><td>0000000000</td><td>ALUNO TESTE</td><td>8,0</td><td>7,5</td><td>--</td><td>9,0</td><td>-</td><td></td><td>6,8</td><td></td><td>3</td><td>CURSANDO</td></tr>
+    </table>
+  </body></html>
+`;
+const parsedSemantic = parser.parseGradesPage(syntheticSemanticGradesPage, { courseId: "03009998" });
+const semanticS1 = parsedSemantic.performance.semesters.find((semester) => semester.number === 1);
+const semanticS2 = parsedSemantic.performance.semesters.find((semester) => semester.number === 2);
+assert.deepStrictEqual(semanticS1.assessments.map((item) => item.sourceKey), [
+  "semester:1:101:assessment",
+  "semester:1:102:assessment"
+]);
+assert.strictEqual(semanticS1.assessments[1].label, "NOTA");
+assert.strictEqual(semanticS1.result.sourceKey, "semester:1:result");
+assert.strictEqual(semanticS1.result.availability, "not_informed");
+assert.strictEqual(semanticS1.result.finality, "unknown");
+assert.strictEqual(semanticS2.result.availability, "not_informed");
+assert.strictEqual(parsedSemantic.performance.exam.availability, "not_informed");
+assert.strictEqual(parsedSemantic.performance.annual.average.value, "6,8");
+assert.strictEqual(parsedSemantic.performance.annual.situation.value, "CURSANDO");
+assert.strictEqual(parsedSemantic.performance.annual.situation.sourceKey, "annual:situation");
+assert.strictEqual(parsedSemantic.performance.unclassified.length, 0);
+
+const syntheticAmbiguousNotePage = syntheticGenericGradesPage.replace(
+  '<th title="Prova de Hardware">PH</th>',
+  '<th>NOTA</th>'
+);
+const parsedAmbiguous = parser.parseGradesPage(syntheticAmbiguousNotePage, { courseId: "03009999" });
+assert.ok(parsedAmbiguous.performance.unclassified.some((item) => item.label === "NOTA"));
+
 const realTooltipHtml = fs.readFileSync("fixtures/ver-notas-fisica.html", "utf8");
 const parsedRealTooltip = parser.parseGradesPage(realTooltipHtml, courses.find((course) => course.code === "99990001"));
 const firstRealPeriod = parsedRealTooltip.periods[0];

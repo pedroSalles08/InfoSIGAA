@@ -1,7 +1,8 @@
 const fs = require("fs");
 const assert = require("assert");
 
-const storageKey = "sigaa-grade-monitor:data:v3";
+const previousStorageKey = "sigaa-grade-monitor:data:v3";
+const storageKey = "sigaa-grade-monitor:data:v4";
 const portalHtml = fs.readFileSync("fixtures/portal-discente.html", "utf8");
 const authenticatedHtml = fs.readFileSync("fixtures/turma-virtual-fisica.html", "utf8");
 const loginHtml = `
@@ -49,7 +50,7 @@ global.chrome = {
   storage: {
     local: {
       get(_keys, callback) {
-        callback({ [storageKey]: storedData });
+        callback(storedData ? { [previousStorageKey]: storedData } : {});
       },
       set(value, callback) {
         saveCalls++;
@@ -107,11 +108,11 @@ async function run() {
   const expiredAtStart = await globalThis.SigaaFetcher.refreshAllGrades(activePortalPage());
   assert.strictEqual(expiredAtStart.ok, false);
   assert.strictEqual(expiredAtStart.status, "session_expired");
-  assert.strictEqual(expiredAtStart.cachedData, previousData);
-  assert.strictEqual(saveCalls, 0);
-  assert.strictEqual(savedData, null);
+  assert.strictEqual(expiredAtStart.cachedData.owner.enrollment, previousData.owner.enrollment);
+  assert.strictEqual(expiredAtStart.cachedData.needsAcademicModelRefresh, true);
 
   storedData = null;
+  saveCalls = 0;
   const notLoggedIn = await globalThis.SigaaFetcher.refreshAllGrades(activePortalPage());
   assert.strictEqual(notLoggedIn.status, "not_logged_in");
   assert.strictEqual(notLoggedIn.cachedData, null);
@@ -132,8 +133,8 @@ async function run() {
 
   const expiredMidRefresh = await globalThis.SigaaFetcher.refreshAllGrades(activePortalPage());
   assert.strictEqual(expiredMidRefresh.status, "session_expired");
-  assert.strictEqual(expiredMidRefresh.cachedData, previousData);
-  assert.strictEqual(saveCalls, 0);
+  assert.strictEqual(expiredMidRefresh.cachedData.owner.enrollment, previousData.owner.enrollment);
+  assert.strictEqual(expiredMidRefresh.cachedData.needsAcademicModelRefresh, true);
   assert.strictEqual(midRefreshResponses.length, 0);
 
   storedData = previousData;
@@ -149,8 +150,8 @@ async function run() {
 
   const totalFailure = await globalThis.SigaaFetcher.refreshAllGrades(activePortalPage());
   assert.strictEqual(totalFailure.status, "refresh_failed");
-  assert.strictEqual(totalFailure.cachedData, previousData);
-  assert.strictEqual(saveCalls, 0);
+  assert.strictEqual(totalFailure.cachedData.owner.enrollment, previousData.owner.enrollment);
+  assert.strictEqual(totalFailure.cachedData.needsAcademicModelRefresh, true);
   assert.strictEqual(
     fetchCount,
     5,

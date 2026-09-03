@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dashboard · InfoSIGAA</title>
+    <link rel="icon" href="icons/icon-32.png">
+    <link rel="stylesheet" href="src/ui-tokens.css">
+    <link rel="stylesheet" href="dashboard.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Ir para o conteúdo</a>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <div class="brand"><img src="icons/icon-32.png" alt="" width="28" height="28"><div><strong>InfoSIGAA</strong><span id="last-updated">Nenhuma atualização</span></div></div>
+        <div class="header-actions">
+          <label class="focus-control">Semestre em foco<select id="semester-focus"><option value="">Visão anual</option><option value="1">1º semestre</option><option value="2">2º semestre</option></select></label>
+          <button id="open-sigaa" class="secondary-button" type="button">Abrir SIGAA</button>
+          <button id="cancel-refresh" class="secondary-button danger-text" type="button" hidden>Cancelar</button>
+          <button id="refresh" type="button">Atualizar</button>
+        </div>
+      </div>
+    </header>
+
+    <main id="content" class="container dashboard">
+      <section id="status" class="status" aria-live="polite" hidden></section>
+
+      <section aria-labelledby="overview-title">
+        <div class="section-heading"><div><p class="eyebrow">Resumo</p><h1 id="overview-title">Dados acadêmicos</h1></div><span id="privacy-mode" class="meta"></span></div>
+        <div id="metrics" class="metrics"></div>
+      </section>
+
+      <section aria-labelledby="attendance-title">
+        <div class="section-heading"><div><p class="eyebrow">Dados resumidos do SIGAA</p><h2 id="attendance-title">Frequência</h2></div></div>
+        <div id="attendance-summary" class="attendance-grid"></div>
+      </section>
+
+      <section aria-labelledby="changes-title">
+        <div class="section-heading"><div><p class="eyebrow">Última atualização</p><h2 id="changes-title">Mudanças</h2></div></div>
+        <div id="changes" class="panel changes"></div>
+      </section>
+
+      <section aria-labelledby="courses-title">
+        <div class="section-heading"><div><p class="eyebrow">Disciplinas</p><h2 id="courses-title">Notas e resultados</h2></div></div>
+        <p class="section-note">Resultados semestrais são valores informados pelo SIGAA. A página não informa se o semestre está encerrado.</p>
+        <div id="courses" class="course-grid"></div>
+      </section>
+
+      <section aria-labelledby="simulator-title">
+        <div class="section-heading"><div><p class="eyebrow">Cálculo</p><h2 id="simulator-title">Projeção da média anual</h2></div></div>
+        <div class="simulator-grid">
+          <form id="annual-simulator" class="panel form-panel">
+            <label>Disciplina<select id="simulator-course"></select></label>
+            <div class="form-row"><label>Resultado do 1º semestre<input id="simulator-s1" inputmode="decimal" readonly></label><label>Resultado projetado do 2º semestre<input id="simulator-s2" inputmode="decimal" placeholder="0 a 10"></label><label>Meta anual<input id="simulator-target" inputmode="decimal" value="7"></label></div>
+            <output id="simulator-output" class="calculation">Selecione uma disciplina.</output>
+            <p class="form-note">Projeção: 1º semestre × 40% + 2º semestre × 60%. A média oficial é a exibida pelo SIGAA.</p>
+          </form>
+          <form id="custom-scenario" class="panel form-panel">
+            <h3>Cenário configurado por você</h3>
+            <label>Composição<select id="scenario-type"><option value="simple">Média simples</option><option value="weighted">Média ponderada</option><option value="sum">Soma</option></select></label>
+            <label>Valores separados por ponto e vírgula<input id="scenario-values" placeholder="7,5; 8; 9"></label>
+            <label id="weights-label" hidden>Pesos separados por ponto e vírgula<input id="scenario-weights" placeholder="2; 3; 5"></label>
+            <output id="scenario-output" class="calculation">Informe os valores.</output>
+            <p class="form-note">Este cálculo não altera os dados coletados do SIGAA.</p>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <script src="src/academic-model.js"></script>
+    <script src="src/ui-format.js"></script>
+    <script src="src/ui-model.js"></script>
+    <script src="src/privacy-storage.js"></script>
+    <script src="dashboard.js"></script>
+  </body>
+</html>

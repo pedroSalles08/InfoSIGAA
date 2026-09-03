@@ -1,7 +1,8 @@
 const fs = require("fs");
 const assert = require("assert");
 
-const storageKey = "sigaa-grade-monitor:data:v3";
+const previousStorageKey = "sigaa-grade-monitor:data:v3";
+const storageKey = "sigaa-grade-monitor:data:v4";
 const previousData = {
   ok: true,
   status: "ok",
@@ -45,7 +46,7 @@ global.chrome = {
   storage: {
     local: {
       get(_keys, callback) {
-        callback({ [storageKey]: previousData });
+        callback({ [previousStorageKey]: previousData });
       },
       set(value, callback) {
         savedData = value[storageKey];
@@ -80,7 +81,8 @@ globalThis.SigaaFetcher.refreshAllGrades({
   assert.strictEqual(result.courses[0].courseId, "TEST_TURMA_1");
   assert.strictEqual(result.courses[0].periods[0].grades[0].value, "8,3");
   assert.strictEqual(result.courses[0].periods[0].grades[0].changeType, "changed");
-  assert.strictEqual(result.courses[1], previousData.courses[1]);
+  assert.strictEqual(result.courses[1].courseId, previousData.courses[1].courseId);
+  assert.strictEqual(result.courses[1].performance, null);
   assert.strictEqual(result.courses[1].recentChangeStatus, "new");
   assert.strictEqual(savedData.courses.length, 2);
   assert.deepStrictEqual(savedData, result);

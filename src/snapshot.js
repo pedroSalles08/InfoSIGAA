@@ -37,6 +37,22 @@
   function flatGradeMap(course) {
     const map = new Map();
 
+    function addAcademicValue(value) {
+      if (value?.sourceKey) {
+        map.set(`Academic:${value.sourceKey}`, normalizeGradeValue(value.value || value.rawValue || ""));
+      }
+    }
+
+    (course?.performance?.semesters || []).forEach((semester) => {
+      (semester.assessments || []).forEach(addAcademicValue);
+      addAcademicValue(semester.result);
+    });
+    addAcademicValue(course?.performance?.annual?.average);
+    addAcademicValue(course?.performance?.annual?.result);
+    addAcademicValue(course?.performance?.annual?.situation);
+    addAcademicValue(course?.performance?.exam);
+    (course?.performance?.unclassified || []).forEach(addAcademicValue);
+
     (course?.periods || []).forEach((period) => {
       (period.grades || []).forEach((grade) => {
         map.set(`${period.name}:${grade.label}`, normalizeGradeValue(grade.value || grade.valor || ""));
@@ -63,6 +79,41 @@
     const previousGrades = flatGradeMap(previousCourse);
     const changes = [];
     let courseChangeStatus = "unchanged";
+    const recordLegacyChanges = !course.performance || !previousCourse.performance;
+    function annotateAcademicValue(value) {
+      if (!value?.sourceKey) {
+        return value;
+      }
+
+      const previousValue = previousGrades.get(`Academic:${value.sourceKey}`);
+      const currentValue = normalizeGradeValue(value.value || value.rawValue || "");
+      const changeType = previousValue == null ? "" : getGradeChangeType(previousValue, currentValue);
+
+      if (changeType) {
+        changes.push({
+          type: changeType,
+          field: value.sourceKey,
+          period: "",
+          label: value.label,
+          previousValue: normalizeGradeValue(previousValue),
+          currentValue,
+          detectedAt
+        });
+
+        if (changeType === "changed" || courseChangeStatus === "unchanged") {
+          courseChangeStatus = changeType;
+        }
+      }
+
+      return {
+        ...value,
+        changed: Boolean(changeType),
+        changeType,
+        previousValue: changeType ? normalizeGradeValue(previousValue) : "",
+        changedAt: changeType ? detectedAt : ""
+      };
+    }
+
     const periods = (course.periods || []).map((period) => ({
       ...period,
       grades: (period.grades || []).map((grade) => {
@@ -71,7 +122,7 @@
         const currentValue = normalizeGradeValue(grade.value || grade.valor || "");
         const changeType = getGradeChangeType(previousValue, currentValue);
 
-        if (changeType) {
+        if (changeType && recordLegacyChanges) {
           changes.push({
             type: changeType,
             field: key,
@@ -108,9 +159,27 @@
       }
     });
 
+    const performance = course.performance ? {
+      ...course.performance,
+      semesters: (course.performance.semesters || []).map((semester) => ({
+        ...semester,
+        assessments: (semester.assessments || []).map(annotateAcademicValue),
+        result: annotateAcademicValue(semester.result)
+      })),
+      annual: {
+        ...(course.performance.annual || {}),
+        average: annotateAcademicValue(course.performance.annual?.average),
+        result: annotateAcademicValue(course.performance.annual?.result),
+        situation: annotateAcademicValue(course.performance.annual?.situation)
+      },
+      exam: annotateAcademicValue(course.performance.exam),
+      unclassified: (course.performance.unclassified || []).map(annotateAcademicValue)
+    } : course.performance;
+
     return {
       ...course,
       periods,
+      performance,
       summary,
       summaryChanges,
       changes,
@@ -214,6 +283,8 @@
       ...(hasPreviousSnapshot ? previousData : {}),
       ok: true,
       status: "ok",
+      schemaVersion: 4,
+      needsAcademicModelRefresh: false,
       updatedAt: detectedAt,
       source: "active-page",
       courses,

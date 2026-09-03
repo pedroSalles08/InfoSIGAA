@@ -3,9 +3,14 @@
 
   const PORTAL_URL = "https://sig.iffarroupilha.edu.br/sigaa/portais/discente/discente.jsf";
   const privacyStorage = globalThis.InfoSigaaPrivacyStorage;
+  const academicModel = globalThis.InfoSigaaAcademicModel;
+  const uiFormat = globalThis.InfoSigaaUiFormat;
+  const uiModel = globalThis.InfoSigaaUiModel;
 
   const elements = {
     refreshButton: document.getElementById("refresh-button"),
+    cancelRefreshButton: document.getElementById("cancel-refresh-button"),
+    openDashboardButton: document.getElementById("open-dashboard-button"),
     settingsButton: document.getElementById("settings-button"),
     closeSettingsButton: document.getElementById("close-settings-button"),
     clearDataButton: document.getElementById("clear-data-button"),
@@ -15,10 +20,12 @@
     privacySummary: document.getElementById("privacy-summary"),
     searchInput: document.getElementById("course-search"),
     filters: document.getElementById("course-filters"),
+    semesterFocus: document.getElementById("semester-focus"),
     controls: document.getElementById("course-controls"),
+    courseListHeading: document.getElementById("course-list-heading"),
+    courseCount: document.getElementById("course-count"),
     dashboard: document.getElementById("dashboard"),
     privacySetup: document.getElementById("privacy-setup"),
-    autoRefreshSetup: document.getElementById("auto-refresh-setup"),
     privacySettings: document.getElementById("privacy-settings"),
     settingsDescription: document.getElementById("settings-description"),
     incognitoNote: document.getElementById("incognito-note"),
@@ -31,43 +38,49 @@
   let tooltipElement = null;
   let tooltipTarget = null;
   let currentData = null;
+  let uiPreferences = { semesterFocusByYear: {} };
   let searchQuery = "";
   let activeFilter = "all";
   let deviceMode = "";
   let effectiveMode = "";
-  let autoRefreshEnabled = false;
-  let autoRefreshConfigured = false;
-  let autoRefreshOnboardingPending = false;
   let isIncognito = false;
   let pendingConfirmation = null;
   let refreshStatusTimer = null;
   let observedBackgroundRefresh = false;
-  const expandedCourseIds = new Set();
-  const initializedCourseIds = new Set();
+  let expandedCourseId = "";
+  let lastRefreshProgressKey = "";
 
   function formatDateValue(isoDate) {
-    if (!isoDate) {
-      return "";
-    }
-
-    return new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short"
-    }).format(new Date(isoDate));
+    return uiFormat.formatDateTime(isoDate);
   }
 
   function formatDate(isoDate) {
-    const value = formatDateValue(isoDate);
-    return value ? `Atualizado em ${value}` : "Nenhuma atualizacao ainda";
+    return uiFormat.formatUpdatedAt(isoDate);
+  }
+
+  function selectedYear() {
+    return uiModel.selectedYear(currentData);
+  }
+
+  function getSemesterFocus() {
+    return uiModel.semesterFocus(uiPreferences, selectedYear());
+  }
+
+  function syncSemesterFocusControl() {
+    elements.semesterFocus.value = String(getSemesterFocus() || "");
   }
 
   function setStatus(message, variant) {
+    lastRefreshProgressKey = "";
     elements.status.hidden = !message;
     elements.status.textContent = message || "";
     elements.status.className = `status${variant ? ` ${variant}` : ""}`;
   }
 
   function setStatusContent(content, variant) {
+    if (!String(variant || "").split(/\s+/).includes("refreshing")) {
+      lastRefreshProgressKey = "";
+    }
     elements.status.hidden = !content;
     elements.status.textContent = "";
     elements.status.className = `status${variant ? ` ${variant}` : ""}`;
@@ -93,13 +106,6 @@
 
   function normalizeTooltipText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
-  }
-
-  function normalizeSearchText(value) {
-    return normalizeTooltipText(value)
-      .toLocaleLowerCase("pt-BR")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
   }
 
   function getGradeTooltipText(grade, labelText) {
@@ -195,6 +201,10 @@
       return createElement("span", "badge error", "Erro");
     }
 
+    if (course.refreshError || course.stale) {
+      return createElement("span", "badge changed", "Anterior");
+    }
+
     if (course.noGrades) {
       return createElement("span", "badge no-grades", "Sem notas");
     }
@@ -222,171 +232,60 @@
   }
 
   function renderOverallSummary(courses) {
-    const errorCount = courses.filter((course) => course.error).length;
-    const noGradesCount = courses.filter((course) => course.noGrades).length;
-    const changedCount = courses.filter((course) => hasRecentChange(course)).length;
-    const loadedCount = courses.length - errorCount - noGradesCount;
-    const totalAbsences = courses.reduce((total, course) => {
-      const absences = parseLocalizedNumber(course.summary?.faltas);
-      return total + (absences == null ? 0 : Math.max(0, absences));
-    }, 0);
+    const overview = uiModel.getOverview(courses, getSemesterFocus());
     const container = createElement("div", "status-chips");
 
-    container.appendChild(renderStatusChip("com notas", loadedCount, "ok"));
-    container.appendChild(
-      renderStatusChip(
-        totalAbsences === 1 ? "falta no total" : "faltas no total",
-        new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(totalAbsences),
-        "absence"
-      )
-    );
-
-    if (noGradesCount > 0) {
-      container.appendChild(renderStatusChip("sem notas", noGradesCount, "no-grades"));
+    container.appendChild(renderStatusChip("com notas", overview.withGrades, "ok"));
+    container.appendChild(renderStatusChip("médias anuais", overview.annualAverages, "average"));
+    if (overview.reportedAbsenceCourses > 0) {
+      container.appendChild(
+        renderStatusChip(
+          overview.totalAbsences === 1 ? "falta informada" : "faltas informadas",
+          new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(overview.totalAbsences),
+          "absence"
+        )
+      );
     }
 
-    if (errorCount > 0) {
-      container.appendChild(renderStatusChip("com erro", errorCount, "error"));
+    if (overview.noGrades > 0) {
+      container.appendChild(renderStatusChip("sem notas", overview.noGrades, "no-grades"));
     }
 
-    if (changedCount > 0) {
-      container.appendChild(renderStatusChip("com mudança", changedCount, "changed"));
+    if (overview.errors > 0) {
+      container.appendChild(renderStatusChip("com erro", overview.errors, "error"));
+    }
+
+    if (overview.changes > 0) {
+      container.appendChild(renderStatusChip("com mudança", overview.changes, "changed"));
     }
 
     return {
       element: container,
-      hasWarning: errorCount > 0
+      hasWarning: overview.errors > 0
     };
   }
 
   function getOriginalCourseTitle(course) {
-    return normalizeTooltipText(
-      course.rawTitle ||
-      [course.code, course.name].filter(Boolean).join(" - ") ||
-      "Materia"
-    );
-  }
-
-  function toTitleCase(value) {
-    const lowercaseWords = new Set(["a", "as", "com", "da", "das", "de", "do", "dos", "e", "em", "no", "nos"]);
-    const romanNumeralPattern = /^(?:i|ii|iii|iv|v|vi|vii|viii|ix|x)$/i;
-
-    return normalizeTooltipText(value)
-      .toLocaleLowerCase("pt-BR")
-      .split(" ")
-      .map((word, index) => {
-        if (romanNumeralPattern.test(word)) {
-          return word.toLocaleUpperCase("pt-BR");
-        }
-
-        if (index > 0 && lowercaseWords.has(word)) {
-          return word;
-        }
-
-        return word.charAt(0).toLocaleUpperCase("pt-BR") + word.slice(1);
-      })
-      .join(" ");
+    return uiModel.originalCourseTitle(course);
   }
 
   function getCourseDisplayName(course) {
-    const originalTitle = getOriginalCourseTitle(course);
-    let displayName = originalTitle
-      .replace(/^\s*\d{5,}\s*-\s*/, "")
-      .replace(/\s*\(\s*\d+\s*h\s*\)\s*/gi, " ")
-      .replace(/\s*-\s*Turma\s*:\s*.*$/i, "")
-      .replace(/\s*\[[^\]]+\]\s*/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (!displayName) {
-      displayName = normalizeTooltipText(course.name) || originalTitle;
-    }
-
-    if (!displayName || displayName.length < 2) {
-      return originalTitle;
-    }
-
-    return toTitleCase(displayName);
+    return uiModel.courseName(course);
   }
 
-  function courseHasGrades(course) {
-    return !course.error && !course.noGrades && (course.periods || []).length > 0;
-  }
-
-  function courseMatchesFilter(course) {
-    if (activeFilter === "with-grades") {
-      return courseHasGrades(course);
-    }
-
-    if (activeFilter === "no-grades") {
-      return Boolean(course.noGrades);
-    }
-
-    if (activeFilter === "changed") {
-      return hasRecentChange(course);
-    }
-
-    if (activeFilter === "errors") {
-      return Boolean(course.error);
-    }
-
-    return true;
-  }
-
-  function courseMatchesSearch(course) {
-    const query = normalizeSearchText(searchQuery);
-
-    if (!query) {
-      return true;
-    }
-
-    const haystack = normalizeSearchText([
-      getCourseDisplayName(course),
-      getOriginalCourseTitle(course),
-      course.name,
-      course.code
-    ].filter(Boolean).join(" "));
-
-    return haystack.includes(query);
+  function renderCourseNotice(label, message, variant) {
+    const notice = createElement("p", `course-notice ${variant}`);
+    notice.appendChild(createElement("strong", "", label));
+    notice.appendChild(document.createTextNode(` ${message}`));
+    return notice;
   }
 
   function getFilteredCourses(courses) {
-    return sortCourses((courses || []).filter((course) => courseMatchesFilter(course) && courseMatchesSearch(course)));
+    return uiModel.filterCourses(courses, { filter: activeFilter, query: searchQuery });
   }
 
   function hasRecentChange(course) {
-    return ["new", "changed", "removed"].includes(course.recentChangeStatus || course.changeStatus);
-  }
-
-  function getCourseSortRank(course) {
-    if (hasRecentChange(course)) {
-      return 0;
-    }
-
-    if (course.error) {
-      return 3;
-    }
-
-    if (course.noGrades) {
-      return 2;
-    }
-
-    return 1;
-  }
-
-  function sortCourses(courses) {
-    return courses
-      .map((course, index) => ({ course, index }))
-      .sort((left, right) => {
-        const rankDiff = getCourseSortRank(left.course) - getCourseSortRank(right.course);
-
-        if (rankDiff !== 0) {
-          return rankDiff;
-        }
-
-        return left.index - right.index;
-      })
-      .map(({ course }) => course);
+    return uiModel.hasRecentChange(course);
   }
 
   function getCourseKey(course, index) {
@@ -400,33 +299,16 @@
     ) || `course-${index}`;
   }
 
-  function shouldExpandByDefault(course) {
-    return hasRecentChange(course);
-  }
-
   function ensureExpansionState(course, index) {
     const courseKey = getCourseKey(course, index);
-
-    if (!initializedCourseIds.has(courseKey)) {
-      initializedCourseIds.add(courseKey);
-
-      if (shouldExpandByDefault(course)) {
-        expandedCourseIds.add(courseKey);
-      }
-    }
-
     return {
       courseKey,
-      expanded: expandedCourseIds.has(courseKey)
+      expanded: expandedCourseId === courseKey
     };
   }
 
   function toggleCourse(courseKey) {
-    if (expandedCourseIds.has(courseKey)) {
-      expandedCourseIds.delete(courseKey);
-    } else {
-      expandedCourseIds.add(courseKey);
-    }
+    expandedCourseId = expandedCourseId === courseKey ? "" : courseKey;
 
     if (currentData) {
       renderData(currentData);
@@ -435,22 +317,6 @@
 
   function getGradeValue(grade) {
     return normalizeTooltipText(grade.value || grade.valor || "");
-  }
-
-  function hasFilledGrade(grade) {
-    const value = getGradeValue(grade);
-    return Boolean(value && value !== "--" && value !== "-");
-  }
-
-  function parseLocalizedNumber(value) {
-    const match = normalizeTooltipText(value).match(/-?\d+(?:[,.]\d+)?/);
-
-    if (!match) {
-      return null;
-    }
-
-    const number = Number(match[0].replace(",", "."));
-    return Number.isFinite(number) ? number : null;
   }
 
   function clamp(value, min, max) {
@@ -472,55 +338,7 @@
   }
 
   function getAttendanceMetrics(course) {
-    const attendance = course.attendance || {};
-    const aulasMinistradas = Number(attendance.aulasMinistradas);
-    const aulasTotal = Number(attendance.aulasTotal);
-    const faltas = parseLocalizedNumber(course.summary?.faltas) ?? 0;
-
-    if (
-      !Number.isFinite(aulasMinistradas) ||
-      !Number.isFinite(aulasTotal) ||
-      aulasMinistradas <= 0 ||
-      aulasTotal <= 0
-    ) {
-      return null;
-    }
-
-    const safeFaltas = Math.max(0, faltas);
-    const presencaAtual = clamp(((aulasMinistradas - safeFaltas) / aulasMinistradas) * 100, 0, 100);
-    const presencaFinalMaxima = clamp(((aulasTotal - safeFaltas) / aulasTotal) * 100, 0, 100);
-    const percentualCargaMinistrada = Number.isFinite(Number(attendance.percentualCargaMinistrada))
-      ? clamp(Number(attendance.percentualCargaMinistrada), 0, 100)
-      : clamp((aulasMinistradas / aulasTotal) * 100, 0, 100);
-    let status = "ok";
-
-    if (presencaFinalMaxima < 75) {
-      status = "critical";
-    } else if (presencaAtual < 75) {
-      status = "warning";
-    }
-
-    return {
-      aulasMinistradas,
-      aulasTotal,
-      faltas: safeFaltas,
-      percentualCargaMinistrada,
-      presencaAtual,
-      presencaFinalMaxima,
-      status
-    };
-  }
-
-  function getAttendanceStatusText(status) {
-    if (status === "critical") {
-      return "Risco: não recuperável com as aulas restantes";
-    }
-
-    if (status === "warning") {
-      return "Atenção: ainda dá para recuperar";
-    }
-
-    return "Presença em dia";
+    return academicModel.getAttendanceMetrics(course);
   }
 
   function renderAttendanceBar(metrics, compact) {
@@ -547,44 +365,45 @@
   function renderCompactAttendance(course) {
     const metrics = getAttendanceMetrics(course);
 
-    if (!metrics) {
+    if (!metrics || metrics.aulasMinistradas == null || metrics.aulasTotal == null) {
       return null;
     }
 
     const container = createElement("div", `attendance-compact ${metrics.status}`);
     const header = createElement("div", "attendance-compact-header");
-    header.appendChild(createElement("span", "", `Presença ${formatPercent(metrics.presencaAtual)}`));
+    header.appendChild(createElement("span", "", metrics.presencaAtual == null ? "Presença não informada" : `Presença ${formatPercent(metrics.presencaAtual)}`));
     header.appendChild(createElement("span", "", `${metrics.aulasMinistradas}/${metrics.aulasTotal} aulas`));
     container.appendChild(header);
-    container.appendChild(renderAttendanceBar(metrics, true));
-    container.appendChild(createElement("span", "attendance-compact-load", `Carga ministrada ${formatPercent(metrics.percentualCargaMinistrada)}`));
-
+    if (metrics.presencaAtual != null) {
+      container.appendChild(renderAttendanceBar(metrics, true));
+    }
     return container;
   }
 
   function renderExpandedAttendance(course) {
     const metrics = getAttendanceMetrics(course);
 
-    if (!metrics) {
+    if (!metrics || metrics.aulasMinistradas == null || metrics.aulasTotal == null) {
       return null;
     }
 
     const container = createElement("section", `attendance-detail ${metrics.status}`);
     const header = createElement("div", "attendance-detail-header");
     header.appendChild(createElement("h3", "period-title", "Frequência"));
-    header.appendChild(createElement("span", "attendance-status", getAttendanceStatusText(metrics.status)));
     container.appendChild(header);
-    container.appendChild(renderAttendanceBar(metrics, false));
+    if (metrics.presencaAtual != null) {
+      container.appendChild(renderAttendanceBar(metrics, false));
+    }
 
     const items = createElement("div", "attendance-grid");
     [
       { label: "Aulas", value: `${metrics.aulasMinistradas}/${metrics.aulasTotal}` },
       { label: "Carga ministrada", value: formatPercent(metrics.percentualCargaMinistrada) },
-      { label: "Faltas", value: String(metrics.faltas) },
-      { label: "Presença atual", value: formatPercent(metrics.presencaAtual), highlight: true },
+      { label: "Faltas", value: metrics.faltas == null ? "Não informado" : String(metrics.faltas) },
+      { label: "Presença atual", value: metrics.presencaAtual == null ? "Não informada" : formatPercent(metrics.presencaAtual), highlight: true },
       {
         label: "Máx. possível",
-        value: formatPercent(metrics.presencaFinalMaxima),
+        value: metrics.presencaFinalMaxima == null ? "Não informada" : formatPercent(metrics.presencaFinalMaxima),
         title: "Maior presença possível caso o aluno compareça a todas as aulas restantes."
       }
     ].forEach(({ label, value, title, highlight }) => {
@@ -606,29 +425,13 @@
     return container;
   }
 
-  function getPeriodKey(period) {
-    return normalizeTooltipText(period?.name).toLocaleLowerCase("pt-BR");
-  }
-
-  function getFirstSemesterPeriod(course) {
-    const periods = course.periods || [];
-    return (
-      periods.find((period) => getPeriodKey(period).includes("1") && getPeriodKey(period).includes("semestre")) ||
-      periods[0] ||
-      null
-    );
-  }
-
-  function periodHasGrades(course, matcher) {
-    return (course.periods || []).some((period) =>
-      matcher(getPeriodKey(period)) &&
-      (period.grades || []).some(hasFilledGrade)
-    );
-  }
-
   function getMainFirstSemesterGrades(course) {
-    const period = getFirstSemesterPeriod(course);
-    return (period?.grades || []).filter(hasFilledGrade).slice(0, 5);
+    const focus = getSemesterFocus();
+    return uiModel.getFocusedAssessments(course, focus, 5).map((grade) => ({
+      ...grade,
+      sigla: focus ? grade.label : `${grade.semesterNumber}º · ${grade.label}`,
+      nomeCompleto: grade.fullName
+    }));
   }
 
   function renderCompactGradeChip(grade) {
@@ -637,10 +440,13 @@
     const chip = createElement("span", `compact-grade${grade.changeType ? ` ${grade.changeType}` : ""}${grade.changed ? " changed" : ""}`);
     const label = createElement("span", "compact-grade-label", labelText);
     const fullName = getGradeTooltipText(grade, labelText);
+    const displayedValue = grade.changed && grade.previousValue
+      ? `${grade.previousValue} → ${value}`
+      : value;
 
     addTooltipBehavior(label, labelText, fullName);
     chip.appendChild(label);
-    chip.appendChild(createElement("strong", "", value));
+    chip.appendChild(createElement("strong", "", displayedValue));
 
     if (grade.changeType) {
       chip.appendChild(createElement("span", "change-pill", getChangeTypeLabel(grade.changeType)));
@@ -676,14 +482,18 @@
 
   function renderCompactSummary(course) {
     const container = createElement("div", "compact-summary");
+    const view = uiModel.getCourseView(course, getSemesterFocus());
 
-    if (course.error) {
-      container.appendChild(createElement("p", "error", course.error));
+    if (view.state === "error") {
+      container.appendChild(renderCourseNotice("Erro:", view.stateMessage || "Não foi possível carregar esta disciplina.", "error-notice"));
       return container;
     }
 
     if (course.noGrades) {
       container.appendChild(createElement("p", "empty-notes", course.message || "Ainda não há notas lançadas para esta matéria."));
+      if (view.state === "stale") {
+        container.appendChild(renderCourseNotice("Dados anteriores:", view.stateMessage || "A atualização mais recente não foi concluída.", "stale-notice"));
+      }
       const attendance = renderCompactAttendance(course);
 
       if (attendance) {
@@ -694,10 +504,13 @@
     }
 
     const stats = createElement("div", "compact-stats");
+    const focus = view.focus;
+    const semesterResult = view.focusResult;
     [
-      renderCompactStat("Média", course.summary?.mediaAnual, "average"),
+      focus ? renderCompactStat(`${focus}º sem.`, semesterResult?.availability === "available" ? semesterResult.value : "Não informado", "average") : null,
+      renderCompactStat("Média anual", view.annualAverage?.value || course.summary?.mediaAnual, "average"),
       renderCompactStat("Faltas", course.summary?.faltas, "absence"),
-      renderCompactStat("Situação", course.summary?.situacao || course.summary?.resultado, "status")
+      renderCompactStat("Situação", view.situation?.value || course.summary?.situacao || course.summary?.resultado, "status")
     ].filter(Boolean).forEach((item) => stats.appendChild(item));
 
     if (stats.childElementCount > 0) {
@@ -710,27 +523,33 @@
       container.appendChild(attendance);
     }
 
-    const firstSemesterGrades = getMainFirstSemesterGrades(course);
+    const focusedGrades = getMainFirstSemesterGrades(course);
 
-    if (firstSemesterGrades.length > 0) {
+    if (focusedGrades.length > 0) {
       const notes = createElement("div", "compact-notes");
-      notes.appendChild(createElement("span", "compact-label", "1º sem."));
-      firstSemesterGrades.forEach((grade) => notes.appendChild(renderCompactGradeChip(grade)));
+      notes.appendChild(createElement("span", "compact-label", focus ? `${focus}º sem.` : "Recentes"));
+      focusedGrades.forEach((grade) => notes.appendChild(renderCompactGradeChip(grade)));
       container.appendChild(notes);
     }
 
     const flags = createElement("div", "compact-flags");
-
-    if (periodHasGrades(course, (periodName) => periodName.includes("2") && periodName.includes("semestre"))) {
-      flags.appendChild(createElement("span", "compact-flag", "2º semestre lançado"));
-    }
-
-    if (periodHasGrades(course, (periodName) => periodName.includes("exame"))) {
+    [1, 2].forEach((semesterNumber) => {
+      const semester = (view.performance.semesters || []).find((item) => Number(item.number) === semesterNumber);
+      const hasAvailableData = semester?.result?.availability === "available" ||
+        uiModel.getFocusedAssessments(course, semesterNumber, 1).length > 0;
+      if (hasAvailableData && semesterNumber !== focus) {
+        flags.appendChild(createElement("span", "compact-flag", `${semesterNumber}º semestre lançado`));
+      }
+    });
+    if (view.exam?.availability === "available") {
       flags.appendChild(createElement("span", "compact-flag", "Exame lançado"));
     }
-
     if (flags.childElementCount > 0) {
       container.appendChild(flags);
+    }
+
+    if (view.state === "stale") {
+      container.appendChild(renderCourseNotice("Dados anteriores:", view.stateMessage || "A atualização mais recente não foi concluída.", "stale-notice"));
     }
 
     if (container.childElementCount === 0) {
@@ -811,14 +630,18 @@
 
   function renderExpandedContent(course) {
     const fragment = document.createDocumentFragment();
+    const view = uiModel.getCourseView(course, getSemesterFocus());
 
-    if (course.error) {
-      fragment.appendChild(createElement("p", "error", course.error));
+    if (view.state === "error") {
+      fragment.appendChild(renderCourseNotice("Erro:", view.stateMessage || "Não foi possível carregar esta disciplina.", "error-notice"));
       return fragment;
     }
 
     if (course.noGrades) {
       fragment.appendChild(createElement("p", "empty-notes", course.message || "Ainda não há notas lançadas para esta matéria."));
+      if (view.state === "stale") {
+        fragment.appendChild(renderCourseNotice("Dados anteriores:", view.stateMessage || "A atualização mais recente não foi concluída.", "stale-notice"));
+      }
       const attendance = renderExpandedAttendance(course);
 
       if (attendance) {
@@ -828,8 +651,72 @@
       return fragment;
     }
 
-    (course.periods || []).forEach((period) => fragment.appendChild(renderPeriod(period)));
-    const summary = renderSummary(course.summary);
+    if (view.state === "stale") {
+      fragment.appendChild(renderCourseNotice("Dados anteriores:", view.stateMessage || "A atualização mais recente não foi concluída.", "stale-notice"));
+    }
+
+    const performance = view.performance;
+    const semesters = performance.semesters || [];
+    semesters.forEach((semester) => {
+      const grades = (semester.assessments || []).map((grade) => ({
+        ...grade,
+        sigla: grade.label,
+        nomeCompleto: grade.fullName,
+        value: grade.availability === "available" ? grade.value : ""
+      }));
+      if (grades.length > 0) {
+        fragment.appendChild(renderPeriod({ name: `Avaliações do ${semester.number}º semestre`, grades }));
+      }
+      const resultSection = document.createElement("section");
+      resultSection.className = "summary-section";
+      resultSection.appendChild(createElement("h3", "period-title", `Resultado do ${semester.number}º semestre`));
+      const resultGrid = createElement("div", "grades");
+      resultGrid.appendChild(renderGrade({
+        ...semester.result,
+        sigla: "Resultado",
+        nomeCompleto: semester.result?.fullName,
+        value: semester.result?.availability === "available" ? semester.result.value : "Não informado"
+      }, true));
+      resultSection.appendChild(resultGrid);
+      fragment.appendChild(resultSection);
+    });
+
+    if (semesters.length === 0) {
+      (course.periods || [])
+        .filter((period) => !normalizeTooltipText(period?.name).toLocaleLowerCase("pt-BR").includes("exame"))
+        .forEach((period) => fragment.appendChild(renderPeriod(period)));
+    }
+
+    if (view.exam?.availability === "available") {
+      fragment.appendChild(renderPeriod({
+        name: "Exame",
+        grades: [{
+          ...view.exam,
+          sigla: view.exam.label || "Exame",
+          nomeCompleto: view.exam.fullName,
+          value: view.exam.value
+        }]
+      }));
+    }
+
+    if (view.unclassified.length > 0) {
+      fragment.appendChild(renderPeriod({
+        name: "Outros dados do SIGAA",
+        grades: view.unclassified.map((item) => ({
+          ...item,
+          sigla: item.label || "Campo",
+          nomeCompleto: item.fullName,
+          value: item.availability === "available" ? item.value : "Não informado"
+        }))
+      }));
+    }
+
+    const summary = renderSummary({
+      mediaAnual: view.annualAverage?.availability === "available" ? view.annualAverage.value : course.summary?.mediaAnual,
+      resultado: view.annualResult?.availability === "available" ? view.annualResult.value : course.summary?.resultado,
+      faltas: course.summary?.faltas,
+      situacao: view.situation?.availability === "available" ? view.situation.value : course.summary?.situacao
+    });
 
     if (summary) {
       fragment.appendChild(summary);
@@ -846,19 +733,32 @@
 
   function renderCourse(course, index) {
     const expansion = ensureExpansionState(course, index);
+    const view = uiModel.getCourseView(course, getSemesterFocus());
+    const changeStatus = course.recentChangeStatus || course.changeStatus;
+    const stateClass = view.state === "error"
+      ? "state-error"
+      : view.state === "stale"
+        ? "state-stale"
+        : view.state === "no_grades"
+          ? "state-no-grades"
+          : changeStatus === "removed"
+            ? "state-removed"
+            : hasRecentChange(course)
+              ? "state-changed"
+              : "state-ok";
     const article = createElement(
       "article",
-      `course${course.noGrades ? " no-grades" : ""}${expansion.expanded ? " expanded" : ""}`
+      `course ${stateClass}${course.noGrades ? " no-grades" : ""}${view.state === "stale" ? " stale" : ""}${expansion.expanded ? " expanded" : ""}`
     );
     const header = createElement("header", "course-header");
     const headingBlock = createElement("div", "course-heading");
     const headerActions = createElement("div", "course-actions");
-    const originalTitle = getOriginalCourseTitle(course);
-    const displayName = getCourseDisplayName(course);
-    const title = createElement("h2", "course-title", displayName);
+    const originalTitle = view.originalTitle;
+    const displayName = view.name;
+    const title = createElement("h3", "course-title", displayName);
 
     const toggleButton = createElement("button", "course-toggle");
-    const toggleText = createElement("span", "toggle-text", "Detalhes");
+    const toggleText = createElement("span", "toggle-text", expansion.expanded ? "Recolher" : "Detalhes");
     const chevronSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     chevronSvg.setAttribute("class", "toggle-chevron");
     chevronSvg.setAttribute("viewBox", "0 0 24 24");
@@ -880,9 +780,7 @@
 
     headingBlock.appendChild(title);
 
-    const teachers = Array.isArray(course.teachers)
-      ? course.teachers.map((name) => String(name || "").trim()).filter(Boolean)
-      : [];
+    const teachers = view.teachers;
 
     if (teachers.length > 0) {
       headingBlock.appendChild(createElement("p", "course-teacher muted", teachers.join(" e ")));
@@ -924,7 +822,9 @@
     currentData = data;
     elements.courses.textContent = "";
     elements.controls.hidden = true;
+    elements.courseListHeading.hidden = true;
     elements.lastUpdated.textContent = formatDate(data?.updatedAt);
+    syncSemesterFocusControl();
 
     if (!data) {
       setStatus(
@@ -937,36 +837,60 @@
     }
 
     if (!data.ok) {
-      setStatus(data.message || "Nao foi possivel buscar as notas.", "warning");
+      setStatus(data.message || "Não foi possível buscar as notas.", "warning");
       return;
     }
 
     const courses = data.courses || [];
 
     if (courses.length === 0) {
-      setStatus("Nenhuma materia com notas foi encontrada.", "warning");
+      setStatus("Nenhuma disciplina com notas foi encontrada.", "warning");
       return;
     }
 
     const summary = renderOverallSummary(courses);
-    setStatusContent(summary.element, summary.hasWarning ? "warning" : "");
+    setStatusContent(summary.element, summary.hasWarning ? "overview has-warning" : "overview");
     elements.controls.hidden = false;
 
     const filteredCourses = getFilteredCourses(courses);
+    elements.courseListHeading.hidden = false;
+    elements.courseCount.textContent = filteredCourses.length === courses.length
+      ? `${courses.length} ${courses.length === 1 ? "disciplina" : "disciplinas"}`
+      : `${filteredCourses.length} de ${courses.length}`;
+    filteredCourses.forEach((course) => {
+      const originalIndex = courses.indexOf(course);
+      elements.courses.appendChild(renderCourse(course, originalIndex));
+    });
 
     if (filteredCourses.length === 0) {
-      elements.courses.appendChild(createElement("p", "empty-results", "Nenhuma matéria encontrada com esse filtro."));
-      return;
+      const emptyState = createElement("div", "empty-results");
+      emptyState.appendChild(createElement("strong", "", "Nenhuma disciplina encontrada"));
+      emptyState.appendChild(createElement("p", "", "Tente outro termo ou volte a exibir todas as disciplinas."));
+      const resetButton = createElement("button", "secondary-button empty-results-action", "Limpar busca e filtros");
+      resetButton.type = "button";
+      resetButton.addEventListener("click", () => {
+        searchQuery = "";
+        activeFilter = "all";
+        expandedCourseId = "";
+        elements.searchInput.value = "";
+        elements.filters.querySelectorAll("[data-filter]").forEach((filterButton) => {
+          const selected = filterButton.dataset.filter === "all";
+          filterButton.classList.toggle("active", selected);
+          filterButton.setAttribute("aria-pressed", String(selected));
+        });
+        renderData(currentData);
+        elements.searchInput.focus();
+      });
+      emptyState.appendChild(resetButton);
+      elements.courses.appendChild(emptyState);
     }
-
-    filteredCourses.forEach((course, index) => elements.courses.appendChild(renderCourse(course, index)));
   }
 
   async function openSigaaPortal() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
     if (!Number.isInteger(tab?.id)) {
-      throw new Error("Nao foi possivel localizar a aba atual.");
+      throw new Error("Não foi possível localizar a aba atual.");
     }
 
     await chrome.tabs.update(tab.id, { url: PORTAL_URL });
@@ -977,7 +901,7 @@
     renderData(cachedData);
 
     const content = createElement("div", "refresh-warning");
-    content.appendChild(createElement("p", "refresh-warning-message", result?.message || "Nao foi possivel atualizar as notas."));
+    content.appendChild(createElement("p", "refresh-warning-message", result?.message || "Não foi possível atualizar as notas."));
 
     if (cachedData?.updatedAt) {
       content.appendChild(
@@ -995,7 +919,7 @@
       loginButton.disabled = true;
       openSigaaPortal().catch((error) => {
         loginButton.disabled = false;
-        setStatus(error.message || "Nao foi possivel abrir o SIGAA.", "warning");
+        setStatus(error.message || "Não foi possível abrir o SIGAA.", "warning");
       });
     });
     content.appendChild(loginButton);
@@ -1021,15 +945,51 @@
     elements.refreshButton.classList.toggle("is-refreshing", running);
     elements.refreshButton.title = running ? "Atualizando..." : "Atualizar";
     elements.refreshButton.setAttribute("aria-label", running ? "Atualizando" : "Atualizar");
+    elements.cancelRefreshButton.hidden = !running;
 
     const srText = elements.refreshButton.querySelector(".sr-only");
     if (srText) {
       srText.textContent = running ? "Atualizando" : "Atualizar";
     }
 
-    if (running) {
-      setStatus("Atualizando em segundo plano. Você pode fechar este painel e continuar usando o SIGAA.", "");
+  }
+
+  function renderRefreshProgress(status = {}) {
+    const completed = Number(status.completedCourses) || 0;
+    const total = Number(status.totalCourses) || 0;
+    const currentCourse = normalizeTooltipText(status.currentCourseName) || "Preparando atualização";
+    const progressKey = `${completed}|${total}|${currentCourse}`;
+
+    if (progressKey === lastRefreshProgressKey && elements.status.classList.contains("refreshing")) {
+      return;
     }
+
+    const content = createElement("div", "refresh-progress");
+    const heading = createElement("div", "refresh-progress-heading");
+    heading.appendChild(createElement("strong", "", "Atualizando notas"));
+    heading.appendChild(createElement("span", "", total ? `${completed} de ${total}` : "Em andamento"));
+    content.appendChild(heading);
+    const currentCourseElement = createElement("p", "", currentCourse);
+    currentCourseElement.title = currentCourse;
+    content.appendChild(currentCourseElement);
+
+    if (total > 0) {
+      const progress = createElement("div", "refresh-progress-bar");
+      const fill = createElement("span", "refresh-progress-fill");
+      const percentage = clamp((completed / total) * 100, 0, 100);
+      fill.style.width = `${percentage}%`;
+      progress.setAttribute("role", "progressbar");
+      progress.setAttribute("aria-valuemin", "0");
+      progress.setAttribute("aria-valuemax", String(total));
+      progress.setAttribute("aria-valuenow", String(completed));
+      progress.setAttribute("aria-label", `${completed} de ${total} disciplinas atualizadas`);
+      progress.appendChild(fill);
+      content.appendChild(progress);
+    }
+
+    content.appendChild(createElement("small", "", "As abas do SIGAA ficam bloqueadas durante esta etapa."));
+    setStatusContent(content, "refreshing");
+    lastRefreshProgressKey = progressKey;
   }
 
   function stopRefreshStatusPolling() {
@@ -1042,15 +1002,16 @@
   }
 
   async function syncRefreshStatus() {
-    const status = await chrome.runtime.sendMessage({ type: "getRefreshStatus" });
+    const status = await chrome.runtime.sendMessage({ type: "getRefreshStatus", consumer: "popup" });
 
     if (status?.running) {
       observedBackgroundRefresh = true;
       setRefreshRunning(true);
+      renderRefreshProgress(status);
       return;
     }
 
-    if (!observedBackgroundRefresh) {
+    if (!observedBackgroundRefresh && !status?.response) {
       return;
     }
 
@@ -1086,13 +1047,22 @@
   }
 
   function acknowledgeRefreshResult() {
-    chrome.runtime.sendMessage({ type: "acknowledgeRefreshResult" }).catch(() => {});
+    chrome.runtime.sendMessage({ type: "acknowledgeRefreshResult", consumer: "popup" }).catch(() => {});
   }
 
-  function refreshGrades() {
+  async function refreshGrades() {
     observedBackgroundRefresh = true;
     setRefreshRunning(true);
-    chrome.runtime.sendMessage({ type: "refreshGrades" })
+    renderRefreshProgress();
+    let sourceTabId;
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (/^https:\/\/sig\.iffarroupilha\.edu\.br\/sigaa\//.test(tab?.url || "")) {
+        sourceTabId = tab.id;
+      }
+    } catch (_error) {}
+
+    chrome.runtime.sendMessage({ type: "startRefresh", sourceTabId })
       .catch((error) => {
         observedBackgroundRefresh = false;
         stopRefreshStatusPolling();
@@ -1130,35 +1100,29 @@
 
   function showSetup() {
     elements.privacySetup.hidden = false;
-    elements.autoRefreshSetup.hidden = true;
     elements.privacySettings.hidden = true;
     elements.dashboard.hidden = true;
     elements.refreshButton.hidden = true;
-    elements.settingsButton.hidden = true;
-    updatePrivacySummary();
-  }
-
-  function showAutoRefreshSetup() {
-    elements.privacySetup.hidden = true;
-    elements.autoRefreshSetup.hidden = false;
-    elements.privacySettings.hidden = true;
-    elements.dashboard.hidden = true;
-    elements.refreshButton.hidden = true;
+    elements.openDashboardButton.hidden = true;
     elements.settingsButton.hidden = true;
     updatePrivacySummary();
   }
 
   async function showDashboard({ reload = true, message = "" } = {}) {
     elements.privacySetup.hidden = true;
-    elements.autoRefreshSetup.hidden = true;
     elements.privacySettings.hidden = true;
     elements.dashboard.hidden = false;
     elements.refreshButton.hidden = false;
+    elements.openDashboardButton.hidden = false;
     elements.settingsButton.hidden = false;
     updatePrivacySummary();
 
     if (reload) {
-      const storedData = await privacyStorage.loadData(getPrivacyContext());
+      const [storedData, preferences] = await Promise.all([
+        privacyStorage.loadData(getPrivacyContext()),
+        privacyStorage.getUiPreferences()
+      ]);
+      uiPreferences = preferences;
       renderData(storedData);
     } else {
       renderData(currentData);
@@ -1172,8 +1136,6 @@
       .then(() => {
         if (observedBackgroundRefresh) {
           startRefreshStatusPolling();
-        } else {
-          acknowledgeRefreshResult();
         }
       })
       .catch(() => {});
@@ -1190,11 +1152,6 @@
     });
 
     elements.incognitoNote.hidden = !isIncognito;
-    elements.privacySettings.querySelectorAll("[data-auto-refresh-enabled]").forEach((button) => {
-      const active = (button.dataset.autoRefreshEnabled === "true") === autoRefreshEnabled;
-      button.classList.toggle("active", active);
-      button.setAttribute("aria-pressed", String(active));
-    });
 
     if (isIncognito) {
       elements.settingsDescription.textContent = "Esta janela usa proteção temporária automaticamente. A preferência do navegador não foi alterada.";
@@ -1208,10 +1165,10 @@
   function showSettings() {
     updateSettingsContent();
     elements.privacySetup.hidden = true;
-    elements.autoRefreshSetup.hidden = true;
     elements.dashboard.hidden = true;
     elements.privacySettings.hidden = false;
     elements.refreshButton.hidden = true;
+    elements.openDashboardButton.hidden = true;
     elements.settingsButton.hidden = true;
   }
 
@@ -1224,7 +1181,7 @@
     elements.confirmationDialog.showModal();
   }
 
-  async function applyDeviceMode(mode, { continueOnboarding = false } = {}) {
+  async function applyDeviceMode(mode) {
     if (mode === privacyStorage.PUBLIC_MODE) {
       currentData = null;
       elements.courses.textContent = "";
@@ -1234,53 +1191,9 @@
     deviceMode = mode;
     effectiveMode = privacyStorage.getEffectiveMode(deviceMode, isIncognito);
     currentData = null;
-    expandedCourseIds.clear();
-    initializedCourseIds.clear();
-
-    if (continueOnboarding && !autoRefreshConfigured) {
-      showAutoRefreshSetup();
-      return;
-    }
+    expandedCourseId = "";
 
     await showDashboard({ reload: true });
-  }
-
-  async function applyAutoRefreshPreference(enabled, { completeOnboarding = false } = {}) {
-    const state = await privacyStorage.setAutoRefreshEnabled(enabled);
-    autoRefreshEnabled = state.autoRefreshEnabled;
-    autoRefreshConfigured = state.autoRefreshConfigured;
-    autoRefreshOnboardingPending = state.autoRefreshOnboardingPending;
-
-    if (completeOnboarding) {
-      await showDashboard({ reload: true });
-      return;
-    }
-
-    updateSettingsContent();
-  }
-
-  function setAutoRefreshControlsDisabled(disabled) {
-    elements.privacySettings.querySelectorAll("[data-auto-refresh-enabled]").forEach((button) => {
-      button.disabled = disabled;
-    });
-  }
-
-  function requestAutoRefreshPreference(enabled) {
-    if (enabled === autoRefreshEnabled && autoRefreshConfigured) {
-      return;
-    }
-
-    setAutoRefreshControlsDisabled(true);
-    applyAutoRefreshPreference(enabled)
-      .catch((error) => {
-        showDashboard({
-          reload: false,
-          message: error.message || "Nao foi possivel alterar a atualizacao automatica."
-        });
-      })
-      .finally(() => {
-        setAutoRefreshControlsDisabled(false);
-      });
   }
 
   function requestDeviceMode(mode) {
@@ -1299,7 +1212,7 @@
     }
 
     applyDeviceMode(mode).catch((error) => {
-      showDashboard({ reload: false, message: error.message || "Nao foi possivel alterar o modo." });
+      showDashboard({ reload: false, message: error.message || "Não foi possível alterar o modo." });
     });
   }
 
@@ -1312,19 +1225,18 @@
         const cleared = await privacyStorage.clearAcademicData();
 
         if (!cleared) {
-          throw new Error("Nao foi possivel limpar todos os dados da extensão.");
+          throw new Error("Não foi possível limpar todos os dados da extensão.");
         }
 
         currentData = null;
         searchQuery = "";
         activeFilter = "all";
-        expandedCourseIds.clear();
-        initializedCourseIds.clear();
+        expandedCourseId = "";
         elements.searchInput.value = "";
         elements.filters.querySelectorAll("[data-filter]").forEach((button) => {
           const selected = button.dataset.filter === "all";
           button.classList.toggle("active", selected);
-          button.setAttribute("aria-selected", String(selected));
+          button.setAttribute("aria-pressed", String(selected));
         });
         await showDashboard({
           reload: false,
@@ -1337,42 +1249,33 @@
   async function initializePrivacy() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const privacy = await privacyStorage.getPrivacyState();
-    let autoRefresh = await privacyStorage.getAutoRefreshState();
     isIncognito = Boolean(tab?.incognito);
     deviceMode = privacy.deviceMode;
     effectiveMode = privacyStorage.getEffectiveMode(deviceMode, isIncognito);
-    autoRefreshEnabled = autoRefresh.autoRefreshEnabled;
-    autoRefreshConfigured = autoRefresh.autoRefreshConfigured;
-    autoRefreshOnboardingPending = autoRefresh.autoRefreshOnboardingPending;
 
     if (!deviceMode && !isIncognito) {
-      if (!autoRefreshConfigured && !autoRefreshOnboardingPending) {
-        autoRefresh = await privacyStorage.markAutoRefreshOnboardingPending();
-        autoRefreshEnabled = autoRefresh.autoRefreshEnabled;
-        autoRefreshConfigured = autoRefresh.autoRefreshConfigured;
-        autoRefreshOnboardingPending = autoRefresh.autoRefreshOnboardingPending;
-      }
-
       showSetup();
       return;
-    }
-
-    if (deviceMode && autoRefreshOnboardingPending && !isIncognito) {
-      showAutoRefreshSetup();
-      return;
-    }
-
-    if (deviceMode && !autoRefreshConfigured && !autoRefreshOnboardingPending) {
-      autoRefresh = await privacyStorage.initializeAutoRefreshForExistingUser();
-      autoRefreshEnabled = autoRefresh.autoRefreshEnabled;
-      autoRefreshConfigured = autoRefresh.autoRefreshConfigured;
-      autoRefreshOnboardingPending = autoRefresh.autoRefreshOnboardingPending;
     }
 
     await showDashboard({ reload: true });
   }
 
   elements.refreshButton.addEventListener("click", refreshGrades);
+  elements.cancelRefreshButton.addEventListener("click", async () => {
+    const status = await chrome.runtime.sendMessage({ type: "getRefreshStatus" });
+    if (status?.running) {
+      await chrome.runtime.sendMessage({ type: "cancelRefresh", refreshId: status.refreshId });
+    }
+  });
+  elements.openDashboardButton.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "openDashboard" })
+      .then((response) => {
+        if (!response?.ok) throw new Error(response?.error || "Não foi possível abrir o dashboard.");
+        window.close();
+      })
+      .catch((error) => setStatus(error.message || "Não foi possível abrir o dashboard.", "warning"));
+  });
   elements.settingsButton.addEventListener("click", showSettings);
   elements.closeSettingsButton.addEventListener("click", () => showDashboard({ reload: false }));
   elements.clearDataButton.addEventListener("click", requestClearData);
@@ -1386,41 +1289,19 @@
     elements.privacySetup.querySelectorAll("[data-setup-mode]").forEach((choice) => {
       choice.disabled = true;
     });
-    applyDeviceMode(button.dataset.setupMode, { continueOnboarding: true }).catch((error) => {
+    applyDeviceMode(button.dataset.setupMode).catch((error) => {
       elements.privacySetup.querySelectorAll("[data-setup-mode]").forEach((choice) => {
         choice.disabled = false;
       });
       elements.privacySetup.querySelector(".panel-description").textContent =
-        error.message || "Nao foi possivel salvar sua escolha.";
+        error.message || "Não foi possível salvar sua escolha.";
     });
-  });
-  elements.autoRefreshSetup.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-setup-auto-refresh]");
-
-    if (!button) {
-      return;
-    }
-
-    elements.autoRefreshSetup.querySelectorAll("[data-setup-auto-refresh]").forEach((choice) => {
-      choice.disabled = true;
-    });
-    applyAutoRefreshPreference(button.dataset.setupAutoRefresh === "true", { completeOnboarding: true })
-      .catch((error) => {
-        elements.autoRefreshSetup.querySelectorAll("[data-setup-auto-refresh]").forEach((choice) => {
-          choice.disabled = false;
-        });
-        elements.autoRefreshSetup.querySelector(".panel-description").textContent =
-          error.message || "Nao foi possivel salvar sua escolha.";
-      });
   });
   elements.privacySettings.addEventListener("click", (event) => {
     const deviceModeButton = event.target.closest("[data-device-mode]");
-    const autoRefreshButton = event.target.closest("[data-auto-refresh-enabled]");
 
     if (deviceModeButton) {
       requestDeviceMode(deviceModeButton.dataset.deviceMode);
-    } else if (autoRefreshButton) {
-      requestAutoRefreshPreference(autoRefreshButton.dataset.autoRefreshEnabled === "true");
     }
   });
   elements.confirmationDialog.addEventListener("close", () => {
@@ -1435,7 +1316,7 @@
     Promise.resolve(action()).catch((error) => {
       showDashboard({
         reload: false,
-        message: error.message || "Nao foi possivel concluir a ação."
+        message: error.message || "Não foi possível concluir a ação."
       });
     });
   });
@@ -1445,6 +1326,16 @@
     if (currentData) {
       renderData(currentData);
     }
+  });
+
+  elements.semesterFocus.addEventListener("change", () => {
+    privacyStorage.setSemesterFocus(selectedYear(), elements.semesterFocus.value)
+      .then((preferences) => {
+        uiPreferences = preferences;
+        expandedCourseId = "";
+        if (currentData) renderData(currentData);
+      })
+      .catch((error) => setStatus(error.message || "Não foi possível salvar o período em foco.", "warning"));
   });
 
   elements.filters.addEventListener("click", (event) => {
@@ -1458,7 +1349,7 @@
     elements.filters.querySelectorAll("[data-filter]").forEach((filterButton) => {
       const selected = filterButton === button;
       filterButton.classList.toggle("active", selected);
-      filterButton.setAttribute("aria-selected", String(selected));
+      filterButton.setAttribute("aria-pressed", String(selected));
     });
 
     if (currentData) {
@@ -1466,10 +1357,25 @@
     }
   });
 
+  chrome.storage?.onChanged?.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes[privacyStorage.UI_PREFERENCES_KEY]) return;
+    uiPreferences = privacyStorage.normalizeUiPreferences(changes[privacyStorage.UI_PREFERENCES_KEY].newValue);
+    expandedCourseId = "";
+    if (currentData) renderData(currentData);
+  });
+
+  chrome.runtime.onMessage?.addListener((message) => {
+    if (message?.type !== "refreshStatusChanged") return false;
+    observedBackgroundRefresh = Boolean(message.status?.running || message.status?.response);
+    startRefreshStatusPolling();
+    return false;
+  });
+
   initializePrivacy().catch((error) => {
     elements.refreshButton.hidden = true;
+    elements.openDashboardButton.hidden = true;
     elements.settingsButton.hidden = true;
     elements.dashboard.hidden = false;
-    setStatus(error.message || "Nao foi possivel iniciar o InfoSIGAA.", "warning");
+    setStatus(error.message || "Não foi possível iniciar o InfoSIGAA.", "warning");
   });
 })();

@@ -4,11 +4,13 @@
   const PERSONAL_MODE = "personal";
   const PUBLIC_MODE = "public";
   const PRIVACY_KEY = "infosigaa:privacy:v1";
-  const SETTINGS_KEY = "infosigaa:settings:v1";
-  const DATA_KEY = "sigaa-grade-monitor:data:v3";
+  const UI_PREFERENCES_KEY = "infosigaa:ui-preferences:v1";
+  const DATA_KEY = "sigaa-grade-monitor:data:v4";
+  const PREVIOUS_DATA_KEY = "sigaa-grade-monitor:data:v3";
   const LEGACY_DATA_KEY = "sigaa-grade-monitor:data:v2";
   const LEGACY_SNAPSHOT_PREFIX = "sigaa-grade-monitor:snapshot:v1:";
-  const SESSION_DATA_PREFIX = "infosigaa:session:data:v3:";
+  const SESSION_DATA_PREFIX = "infosigaa:session:data:v4:";
+  const PREVIOUS_SESSION_DATA_PREFIX = "infosigaa:session:data:v3:";
 
   function getChromeStorage() {
     return globalThis.chrome?.storage || null;
@@ -160,8 +162,60 @@
     return ownersMatch(previousData, currentData) ? previousData : null;
   }
 
+  function migrateSnapshot(data) {
+    if (!data || Number(data.schemaVersion) >= 4) {
+      return data || null;
+    }
+
+    return attachOwner({
+      ...data,
+      schemaVersion: 4,
+      needsAcademicModelRefresh: true,
+      courses: (data.courses || []).map((course) => ({
+        ...course,
+        performance: course.performance || null
+      }))
+    });
+  }
+
   function normalizeMode(value) {
     return value === PERSONAL_MODE || value === PUBLIC_MODE ? value : "";
+  }
+
+  function normalizeSemesterFocus(value) {
+    const focus = Number(value) || 0;
+    return [0, 1, 2].includes(focus) ? focus : 0;
+  }
+
+  function normalizeUiPreferences(value) {
+    const semesterFocusByYear = {};
+    Object.entries(value?.semesterFocusByYear || {}).forEach(([year, focus]) => {
+      const normalizedYear = String(year || "").trim();
+      if (/^\d{4}$/.test(normalizedYear)) {
+        semesterFocusByYear[normalizedYear] = normalizeSemesterFocus(focus);
+      }
+    });
+    return { semesterFocusByYear };
+  }
+
+  async function getUiPreferences() {
+    const result = await readArea("local", [UI_PREFERENCES_KEY]);
+    return normalizeUiPreferences(result[UI_PREFERENCES_KEY]);
+  }
+
+  async function setSemesterFocus(year, focus) {
+    const normalizedYear = String(year || "").trim();
+    if (!/^\d{4}$/.test(normalizedYear)) {
+      throw new Error("Ano letivo inválido para salvar o período em foco.");
+    }
+
+    const preferences = await getUiPreferences();
+    preferences.semesterFocusByYear[normalizedYear] = normalizeSemesterFocus(focus);
+    const saved = await writeArea("local", { [UI_PREFERENCES_KEY]: preferences });
+    if (!saved) {
+      throw new Error("Não foi possível salvar o período em foco.");
+    }
+    return preferences;
   }
 
   async function getPrivacyState() {
@@ -172,72 +226,6 @@
       deviceMode: normalizeMode(stored.deviceMode),
       onboardingVersion: Number(stored.onboardingVersion) || 0
     };
-  }
-
-  async function getRawSettings() {
-    const result = await readArea("local", [SETTINGS_KEY]);
-    return result[SETTINGS_KEY] || {};
-  }
-
-  function normalizeAutoRefreshState(stored) {
-    return {
-      autoRefreshEnabled: stored?.autoRefreshEnabled === true,
-      autoRefreshConfigured: stored?.autoRefreshConfigured === true,
-      autoRefreshOnboardingPending: stored?.autoRefreshOnboardingPending === true
-    };
-  }
-
-  async function getAutoRefreshState() {
-    return normalizeAutoRefreshState(await getRawSettings());
-  }
-
-  async function writeAutoRefreshState(nextState) {
-    const stored = await getRawSettings();
-    const state = normalizeAutoRefreshState({ ...stored, ...nextState });
-    const saved = await writeArea("local", {
-      [SETTINGS_KEY]: {
-        ...stored,
-        ...state
-      }
-    });
-
-    if (!saved) {
-      throw new Error("Nao foi possivel salvar a preferencia de atualizacao automatica.");
-    }
-
-    return state;
-  }
-
-  async function markAutoRefreshOnboardingPending() {
-    const state = await getAutoRefreshState();
-
-    if (state.autoRefreshConfigured || state.autoRefreshOnboardingPending) {
-      return state;
-    }
-
-    return writeAutoRefreshState({
-      autoRefreshEnabled: false,
-      autoRefreshConfigured: false,
-      autoRefreshOnboardingPending: true
-    });
-  }
-
-  async function setAutoRefreshEnabled(enabled) {
-    return writeAutoRefreshState({
-      autoRefreshEnabled: enabled === true,
-      autoRefreshConfigured: true,
-      autoRefreshOnboardingPending: false
-    });
-  }
-
-  async function initializeAutoRefreshForExistingUser() {
-    const state = await getAutoRefreshState();
-
-    if (state.autoRefreshConfigured || state.autoRefreshOnboardingPending) {
-      return state;
-    }
-
-    return setAutoRefreshEnabled(false);
   }
 
   function getEffectiveMode(deviceMode, incognito) {
@@ -272,17 +260,40 @@
     const location = getDataLocation(context);
 
     if (location.areaName === "local") {
-      const result = await readArea("local", [DATA_KEY, LEGACY_DATA_KEY]);
-      return result[DATA_KEY] || result[LEGACY_DATA_KEY] || null;
+      const result = await readArea("local", [DATA_KEY, PREVIOUS_DATA_KEY, LEGACY_DATA_KEY]);
+      if (result[DATA_KEY]) {
+        return result[DATA_KEY];
+      }
+
+      const migrated = migrateSnapshot(result[PREVIOUS_DATA_KEY] || result[LEGACY_DATA_KEY]);
+      if (migrated) {
+        await writeArea("local", { [DATA_KEY]: migrated });
+      }
+      return migrated;
     }
 
-    const result = await readArea(location.areaName, [location.key]);
-    return result[location.key] || null;
+    const previousKey = `${PREVIOUS_SESSION_DATA_PREFIX}${context.incognito ? "incognito" : "regular"}`;
+    const result = await readArea(location.areaName, [location.key, previousKey]);
+    if (result[location.key]) {
+      return result[location.key];
+    }
+
+    const migrated = migrateSnapshot(result[previousKey]);
+    if (migrated) {
+      await writeArea(location.areaName, { [location.key]: migrated });
+    }
+    return migrated;
   }
 
   async function saveData(context, data) {
     const location = getDataLocation(context);
-    return writeArea(location.areaName, { [location.key]: attachOwner(data) });
+    return writeArea(location.areaName, {
+      [location.key]: attachOwner({
+        ...data,
+        schemaVersion: 4,
+        needsAcademicModelRefresh: Boolean(data?.needsAcademicModelRefresh)
+      })
+    });
   }
 
   async function removeCurrentData(context) {
@@ -293,9 +304,11 @@
   function isAcademicLocalKey(key) {
     return (
       key === DATA_KEY ||
+      key === PREVIOUS_DATA_KEY ||
       key === LEGACY_DATA_KEY ||
       key.startsWith(LEGACY_SNAPSHOT_PREFIX) ||
-      key.startsWith(SESSION_DATA_PREFIX)
+      key.startsWith(SESSION_DATA_PREFIX) ||
+      key.startsWith(PREVIOUS_SESSION_DATA_PREFIX)
     );
   }
 
@@ -308,7 +321,9 @@
   async function clearAcademicData() {
     const [localCleared, sessionCleared] = await Promise.all([
       clearAreaByPredicate("local", isAcademicLocalKey),
-      clearAreaByPredicate("session", (key) => key.startsWith(SESSION_DATA_PREFIX))
+      clearAreaByPredicate("session", (key) =>
+        key.startsWith(SESSION_DATA_PREFIX) || key.startsWith(PREVIOUS_SESSION_DATA_PREFIX)
+      )
     ]);
 
     return localCleared && sessionCleared;
@@ -317,23 +332,23 @@
   async function migrateLegacyToPersonal() {
     const values = await readArea("local", null);
     const existing = values[DATA_KEY];
-    const legacy = values[LEGACY_DATA_KEY];
+    const legacy = values[PREVIOUS_DATA_KEY] || values[LEGACY_DATA_KEY];
 
     if (!existing && legacy) {
-      const migrated = await writeArea("local", { [DATA_KEY]: attachOwner(legacy) });
+      const migrated = await writeArea("local", { [DATA_KEY]: migrateSnapshot(legacy) });
 
       if (!migrated) {
-        throw new Error("Nao foi possivel migrar os dados salvos.");
+        throw new Error("Não foi possível migrar os dados salvos.");
       }
     }
 
     const obsoleteKeys = Object.keys(values).filter(
-      (key) => key === LEGACY_DATA_KEY || key.startsWith(LEGACY_SNAPSHOT_PREFIX)
+      (key) => key === PREVIOUS_DATA_KEY || key === LEGACY_DATA_KEY || key.startsWith(LEGACY_SNAPSHOT_PREFIX)
     );
     const removed = await removeFromArea("local", obsoleteKeys);
 
     if (!removed) {
-      throw new Error("Nao foi possivel concluir a migracao dos dados.");
+      throw new Error("Não foi possível concluir a migração dos dados.");
     }
   }
 
@@ -348,16 +363,16 @@
       const cleared = await clearAcademicData();
 
       if (!cleared) {
-        throw new Error("Nao foi possivel apagar os dados antes de ativar o modo compartilhado.");
+        throw new Error("Não foi possível apagar os dados antes de ativar o modo compartilhado.");
       }
     } else {
       const sessionCleared = await clearAreaByPredicate(
         "session",
-        (key) => key.startsWith(SESSION_DATA_PREFIX)
+        (key) => key.startsWith(SESSION_DATA_PREFIX) || key.startsWith(PREVIOUS_SESSION_DATA_PREFIX)
       );
 
       if (!sessionCleared) {
-        throw new Error("Nao foi possivel limpar os dados temporarios.");
+        throw new Error("Não foi possível limpar os dados temporários.");
       }
 
       await migrateLegacyToPersonal();
@@ -371,7 +386,7 @@
     });
 
     if (!saved) {
-      throw new Error("Nao foi possivel salvar a preferencia de privacidade.");
+      throw new Error("Não foi possível salvar a preferência de privacidade.");
     }
 
     return normalizedMode;
@@ -388,7 +403,7 @@
       try {
         await area.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
       } catch (error) {
-        console.warn("[InfoSIGAA] Nao foi possivel restringir o armazenamento:", error?.message || error);
+        console.warn("[InfoSIGAA] Não foi possível restringir o armazenamento:", error?.message || error);
       }
     }));
   }
@@ -397,29 +412,31 @@
     DATA_KEY,
     LEGACY_DATA_KEY,
     LEGACY_SNAPSHOT_PREFIX,
+    PREVIOUS_DATA_KEY,
+    PREVIOUS_SESSION_DATA_PREFIX,
     PERSONAL_MODE,
     PRIVACY_KEY,
     PUBLIC_MODE,
-    SETTINGS_KEY,
     SESSION_DATA_PREFIX,
+    UI_PREFERENCES_KEY,
     attachOwner,
     clearAcademicData,
     extractOwner,
     getContext,
-    getAutoRefreshState,
     getEffectiveMode,
     getMatchingPrevious,
     getPrivacyState,
-    initializeAutoRefreshForExistingUser,
+    getUiPreferences,
     loadData,
     migrateLegacyToPersonal,
-    markAutoRefreshOnboardingPending,
+    migrateSnapshot,
     normalizeEnrollment,
+    normalizeUiPreferences,
     ownersMatch,
     removeCurrentData,
     restrictStorageAccess,
     saveData,
-    setAutoRefreshEnabled,
+    setSemesterFocus,
     setDeviceMode
   };
 

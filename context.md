@@ -1,380 +1,175 @@
-# Contexto do Projeto: InfoSIGAA
+# Contexto do projeto: InfoSIGAA
 
-## Objetivo
+## Escopo
 
-Extensao de navegador para uso pessoal que ajuda o aluno a acompanhar as proprias notas no SIGAA do IFFarroupilha.
+Extensão Chrome para alunos do IFFarroupilha. Usa a sessão já autenticada no SIGAA, coleta os dados somente quando o aluno solicita e apresenta as informações em um dashboard local da extensão.
 
-O foco atual e mostrar um painel no popup da extensao com as materias, notas, mudancas recentes e frequencia, usando apenas a sessao ja aberta no navegador.
+Não existe conta do InfoSIGAA, backend, sincronização entre dispositivos, login automático ou atualização periódica.
 
-## Regras de seguranca e privacidade
+## Regras acadêmicas
 
-- Nao fazer login automaticamente.
-- Nao guardar senha.
-- Nao salvar cookies manualmente.
-- Nao enviar dados para servidor externo.
-- Funcionar somente quando o usuario ja esta logado no SIGAA.
-- Usar requisicoes com a sessao atual do navegador.
-- Dados ficam locais no navegador.
+- O resultado do 1º semestre corresponde a 40% da média anual.
+- O resultado do 2º semestre corresponde a 60% da média anual.
+- Projeção anual: `S1 × 0,40 + S2 × 0,60`.
+- Resultado necessário no 2º semestre: `(meta − S1 × 0,40) ÷ 0,60`.
+- A média anual oficial é sempre a fornecida pelo SIGAA. Cálculos do InfoSIGAA são identificados como projeções.
+- O InfoSIGAA não calcula resultado semestral a partir de avaliações sem uma fórmula configurada pelo aluno.
+- O SIGAA não fornece evidência suficiente para afirmar que um resultado semestral está finalizado. A interface usa “valor informado pelo SIGAA” e mantém `finality: "unknown"`.
+- `-`, `--` e vazio significam “Não informado”. Coluna inexistente usa disponibilidade `not_exposed`.
 
-## Arquitetura atual
+## Modelo de dados v4
 
-Arquivos principais ativos:
+Cada disciplina possui:
 
-- `manifest.json`
-  - Extensao MV3.
-  - Usa `incognito: split` para operar com a sessao propria da janela anonima.
-  - Permissoes: `activeTab`, `scripting`, `storage`.
-  - Host permission: `https://sig.iffarroupilha.edu.br/sigaa/*`.
-  - Service worker: `src/background.js`.
-  - Popup: `popup.html`.
+```text
+performance
+├── semesters[]
+│   ├── assessments[]
+│   └── result
+├── annual
+│   ├── average
+│   ├── result
+│   └── situation
+├── exam
+└── unclassified[]
+```
 
-- `popup.html`
-  - Estrutura do popup.
-  - Carrega `popup.css`, `src/privacy-storage.js` e `popup.js`.
+Cada valor acadêmico inclui `sourceKey`, `role`, `label`, `fullName`, `value`, `numericValue`, `rawValue`, `availability`, `evidence` e `finality`.
 
-- `popup.js`
-  - Controla UI do popup.
-  - Envia mensagem `refreshGrades` para o service worker.
-  - Renderiza materias, busca, filtros, cards recolhiveis, tooltips, mudancas, notas e frequencia.
-  - Faz as escolhas iniciais de privacidade e atualizacao automatica.
-  - Le o ultimo snapshot do armazenamento correspondente: persistente no modo pessoal e temporario no compartilhado enquanto a sessao atual do Chrome estiver ativa.
-  - Oferece configuracao de modo, atualizacao automatica e limpeza dos dados academicos.
+Classificação usada pelo parser:
 
-- `popup.css`
-  - Design do popup.
-  - Cards compactos/expandidos.
-  - Badges, filtros, notas, tooltips e barra de presenca.
+- cabeçalho `aval_...`: avaliação individual, mesmo quando o rótulo é `NOTA`;
+- cabeçalho `id="unid"` dentro de semestre: resultado semestral;
+- cabeçalho `id="unid"` dentro de exame: resultado do exame;
+- coluna “Média Anual”: média anual informada pelo SIGAA;
+- `NOTA` sem evidência estrutural: `unclassified`;
+- nunca classificar um resultado semestral apenas pela posição da coluna.
 
-- `src/background.js`
-  - Importa `privacy-storage.js`, `sigaa-parser.js`, `snapshot.js` e `sigaa-fetcher.js`.
-  - Captura o HTML da aba alvo do SIGAA, incluindo frames.
-  - Unifica os disparos manual e automatico antes de chamar `SigaaFetcher.refreshAllGrades`.
-  - Observa o carregamento concluido do Portal do Discente e mantem somente uma atualizacao ativa.
+Snapshots com modelo v4 usam os identificadores semânticos para comparar mudanças. Na primeira atualização após migrar dados antigos, o comparador legado é usado para preservar a comparação disponível.
 
-- `src/privacy-storage.js`
-  - Centraliza preferencia pessoal/compartilhado e o modo efetivo da janela.
-  - Mantem a preferencia de atualizacao automatica e o estado do onboarding.
-  - Mantem dados pessoais em `chrome.storage.local` e dados compartilhados em `chrome.storage.session`.
-  - Migra a chave antiga, limpa dados academicos e preserva somente a preferencia.
-  - Normaliza a matricula, identifica o proprietario do snapshot e impede comparacao entre alunos diferentes.
-  - Restringe o acesso ao armazenamento a contextos confiaveis da extensao.
+## Armazenamento e privacidade
 
-- `src/snapshot.js`
-  - Compara notas entre snapshots.
-  - Mescla a atualizacao de uma pagina de notas no snapshot completo.
-  - Identifica materias por `courseId`, codigo/ano ou nome/ano sem criar correspondencias ambiguas.
-  - Preserva as demais materias e seus destaques quando somente uma materia e atualizada.
+- Preferência: `infosigaa:privacy:v1` em `chrome.storage.local`.
+- Dados pessoais v4: `sigaa-grade-monitor:data:v4` em `chrome.storage.local`.
+- Dados temporários: `infosigaa:session:data:v4:regular` e `infosigaa:session:data:v4:incognito` em `chrome.storage.session`. Logout e falhas preservam o snapshot válido anterior; ele desaparece quando a sessão de armazenamento é encerrada ou quando o aluno usa “Limpar dados”.
+- Dados v3 e v2 são migrados para v4 com `needsAcademicModelRefresh: true` e `performance: null`. Nenhum campo legado chamado `NOTA` é reclassificado durante a migração.
+- A próxima coleta substitui o modelo legado por dados classificados a partir da estrutura atual do SIGAA.
+- Dados e comparações são isolados por matrícula.
+- Modo compartilhado e janelas anônimas não mantêm dados acadêmicos em armazenamento persistente.
+- Não armazenar senha, cookie, HTML integral ou `javax.faces.ViewState`.
 
-- `src/sigaa-fetcher.js`
-  - Navega pelo SIGAA usando `fetch` com `credentials: "include"`.
-  - Entra nas materias e aciona a opcao `Ver Notas`.
-  - Usa a sessao ja logada do usuario.
-  - Valida a autenticacao antes da coleta e em cada resposta do SIGAA.
-  - Interrompe a atualizacao sem gravar quando a sessao expira.
-  - Usa `SigaaSnapshot` para comparar e mesclar resultados.
-  - Valida a matricula antes de comparar ou mesclar o snapshot anterior.
-  - Salva conforme o modo efetivo e nunca devolve cache temporario em falhas no modo compartilhado.
+## Coleta manual protegida
 
-- `src/sigaa-parser.js`
-  - Parser de paginas do SIGAA.
-  - Extrai materias do portal discente.
-  - Extrai acao `Ver Notas`.
-  - Parseia tabela de notas genericamente.
-  - Extrai sigla, nome completo da avaliacao, valor, periodos, media, faltas, resultado e situacao.
-  - Extrai `Aulas (Ministradas/Total)` e percentual de carga horaria.
+O popup envia `startRefresh { sourceTabId? }`. O dashboard envia `startRefresh` sem aba; nesse caso o background escolhe a aba SIGAA autenticada acessada mais recentemente.
 
-- `tests/parser-smoke.js`
-  - Testes smoke do parser usando apenas fixtures sinteticas.
+Durante a coleta:
 
-- `tests/snapshot-smoke.js`
-  - Testa deteccao de mudancas e atualizacao parcial sem perda de materias.
+- existe um único `refreshId` ativo;
+- o estado operacional fica em `chrome.storage.session`;
+- heartbeat: 15 segundos;
+- timeout: 10 minutos;
+- `AbortSignal` é repassado a todas as requisições;
+- todas as abas SIGAA da mesma sessão recebem `setSigaaInteractionLock`;
+- o content script roda em `document_start` e em todos os frames;
+- mouse, teclado, foco e formulários são bloqueados;
+- o overlay mostra andamento, disciplina atual e botão Cancelar;
+- recarregar ou navegar numa aba SIGAA durante a coleta cancela a operação.
 
-- `tests/active-page-smoke.js`
-  - Testa o fluxo real do fetcher ao atualizar diretamente uma pagina de notas.
+Cancelamento, timeout, logout, reinício ou falha total não gravam um snapshot incompleto. Se uma disciplina falhar, seus dados anteriores são preservados com `stale` e `refreshError`.
 
-- `tests/session-expiry-smoke.js`
-  - Testa sessao expirada antes e durante a coleta e garante que o snapshot valido nao seja substituido.
+Mensagens de runtime:
 
-- `tests/privacy-storage-smoke.js`
-  - Testa migracao, modos pessoal/compartilhado, contexto anonimo, limpeza e restricao de acesso.
+- `openDashboard`;
+- `startRefresh { sourceTabId? }`;
+- `cancelRefresh { refreshId }`;
+- `getRefreshStatus { consumer: "popup" | "dashboard" }`;
+- `refreshStatusChanged`;
+- `setSigaaInteractionLock`;
+- `sigaaLockReady`;
+- `acknowledgeRefreshResult { consumer: "popup" | "dashboard" }`.
 
-- `tests/identity-isolation-smoke.js`
-  - Testa troca de matricula sem reaproveitar materias e garante que falhas publicas nao revelem cache.
+Popup e dashboard reconhecem o resultado de modo independente: visualizar a conclusão em uma interface não consome a mensagem da outra.
 
-- `tests/privacy-ui-smoke.js`
-  - Testa onboarding, controles, manifesto anonimo, encapsulamento do armazenamento e padrao visual.
+## Frequência
 
-- `tests/fixtures-privacy.js`
-  - Impede que capturas integrais e indicadores comuns de dados pessoais entrem nas fixtures publicas.
+O fetcher não abre a opção “Frequência” de cada Turma Virtual. As faltas vêm da tabela “Ver Notas”; aulas ministradas, carga total e percentual de carga ministrada vêm da tela inicial da Turma Virtual.
 
-Arquivos antigos do MVP:
+Quando faltas e totais estão explicitamente disponíveis, o modelo calcula:
 
-- `src/content.js`
-- `src/diff.js`
-- `src/notice.js`
-- `src/parser.js`
-- `src/storage.js`
+- presença atual: `(aulas ministradas − faltas) ÷ aulas ministradas`;
+- presença máxima possível: `(carga total − faltas) ÷ carga total`;
+- limite estimado de faltas: `floor(carga total × 25%)`;
+- margem estimada: `limite − faltas`.
 
-Esses arquivos existem no projeto, mas nao estao referenciados no `manifest.json` atual. Eles pertencem a uma abordagem antiga de content script e aviso direto na pagina. A versao atual funciona pelo popup + background.
+Campo vazio ou `--` não equivale a zero. As margens são apresentadas como estimativas em unidades de aula, não em dias, e não afirmam aprovação ou reprovação oficial. O regime do curso pode exigir frequência por componente ou pelo total da etapa letiva.
 
-## Funcionalidades ja implementadas
+## Interfaces
 
-### Coleta de materias e notas
+### Dashboard
 
-- A extensao le materias no portal discente.
-- Para cada materia, entra na Turma Virtual.
-- Abre a pagina `Ver Notas`.
-- Parseia a tabela de notas.
-- Agrupa notas por materia e periodo.
-- Suporta estruturas variaveis de tabela com multiplas linhas de cabecalho, `colspan` e `rowspan`.
-- Nao usa regras fixas por disciplina.
+Arquivos: `dashboard.html`, `dashboard.css`, `dashboard.js`.
 
-### Siglas e tooltips
+Ordem:
 
-- As siglas das avaliacoes sao lidas da propria pagina de notas.
-- O nome completo da avaliacao e capturado quando disponivel em:
-  - inputs ocultos do SIGAA;
-  - `title`;
-  - `alt`;
-  - `data-*`;
-  - eventos de tooltip;
-  - conteudo relacionado no HTML.
-- No popup, a sigla aparece compacta.
-- Ao passar o mouse ou focar na sigla, aparece tooltip customizado.
-- O atributo `title` tambem e mantido como fallback.
+1. cabeçalho com atualização, privacidade e semestre em foco;
+2. resumo acadêmico;
+3. resumo de frequência e margem estimada por disciplina;
+4. mudanças da última atualização;
+5. disciplinas;
+6. projeção anual e cenário configurado pelo aluno.
 
-### Materias sem notas
-
-- Ausencia de notas lancadas nao e tratada como erro critico.
-- O status exibido e `Sem notas`.
-- Mensagem amigavel:
-  - `Ainda não há notas lançadas para esta matéria.`
-- Erros reais continuam com status `Erro`.
+O semestre em foco pode ser anual, 1º ou 2º semestre e é salvo por ano em uma preferência separada do snapshot acadêmico. Popup e dashboard compartilham essa preferência. Cada disciplina separa avaliações, resultados semestrais, média anual, exame e campos não classificados.
 
 ### Popup
 
-- Na primeira abertura normal, pergunta uma unica vez se o dispositivo e pessoal ou compartilhado e, em seguida, se a atualizacao automatica deve ser ativada.
-- Usuarios que ja concluiram a escolha de privacidade recebem a nova preferencia desativada sem repetir o onboarding.
-- O modo pessoal e a opcao principal e preserva a experiencia persistente anterior.
-- O modo compartilhado mantem o painel temporario disponivel enquanto a mesma sessao do Chrome estiver aberta.
-- Janelas anonimas usam automaticamente o modo compartilhado, sem mudar a preferencia normal.
-- O painel de Configuracoes permite mudar o modo, ativar/desativar a atualizacao automatica e limpar dados academicos.
-- A limpeza nao faz logout nem altera cookies do SIGAA.
-- Cards por materia.
-- Nome da materia encurtado genericamente:
-  - remove codigo inicial;
-  - remove carga horaria como `(66h)`;
-  - remove trecho `- Turma: ...`;
-  - remove trecho entre colchetes.
-- Nome completo original fica em `title`/tooltip.
-- Numerais romanos sao preservados em maiusculas de forma generica:
-  - `I`, `II`, `III`, `IV`, `V`, `VI`, `VII`, `VIII`, `IX`, `X`.
-- Cards sao recolhiveis/expansiveis.
-- Por padrao, ficam compactos.
-- Materias com mudanca recente podem abrir expandidas.
-- Busca por materia ignora maiusculas/minusculas e acentos.
-- Filtros:
-  - Todas;
-  - Com notas;
-  - Sem notas;
-  - Alteradas;
-  - Erros.
-- Busca e filtros funcionam juntos.
+O popup é uma consulta rápida autossuficiente. Ele mostra resumo numérico, busca, filtros, período em foco, todas as disciplinas na ordem do SIGAA e um card por disciplina. Os cards começam recolhidos, somente um pode ser expandido por vez e exibem notas, mudanças inline, valores anteriores, frequência, faltas, situação, exame e estados de erro ou dados preservados. Busca, filtro e expansão são temporários; apenas o período é persistido e sincronizado com o dashboard.
 
-### Snapshots e mudancas
+### Design e texto
 
-Mecanismo atual:
+- fundo `#171717`;
+- superfícies `#202020`, `#252525` e `#2b2b2b`;
+- texto `#ececec`;
+- controles com raio de 7 px e painéis com raio de 10 px;
+- sem gradientes, sombras pesadas ou bibliotecas visuais externas;
+- transições de 120–180 ms e `prefers-reduced-motion`;
+- textos diretos, factuais e sem frases promocionais;
+- distinguir fatos do SIGAA, cálculos do InfoSIGAA e configurações do aluno.
 
-- No modo pessoal, usa `chrome.storage.local`.
-- No modo compartilhado, usa `chrome.storage.session` para o painel e para comparacao temporaria durante a sessao atual do Chrome.
-- Chave pessoal ativa:
-  - `sigaa-grade-monitor:data:v3`
-- Preferencia nao sensivel:
-  - `infosigaa:privacy:v1`
-  - `infosigaa:settings:v1`
-- Chaves temporarias:
-  - `infosigaa:session:data:v3:regular`
-  - `infosigaa:session:data:v3:incognito`
-- O snapshot salvo contem o ultimo resultado completo da atualizacao.
-- O snapshot inclui `owner` com matricula normalizada e nome quando uma identidade consistente foi encontrada.
+## Arquivos principais
 
-Deteccao:
+- `manifest.json`: manifesto MV3, permissões, popup, service worker e content script de bloqueio.
+- `src/academic-model.js`: disponibilidade, valores acadêmicos, fórmulas 40%/60% e estimativas de frequência.
+- `src/ui-tokens.css`: cores, tipografia, espaçamentos, raios e transições compartilhados pelo popup e dashboard.
+- `src/ui-format.js`: formatação compartilhada de números e datas.
+- `src/ui-model.js`: view-model compartilhado de disciplinas, filtros, métricas e período em foco.
+- `src/sigaa-parser.js`: páginas JSF, avaliações, resultados, resumo e totais de frequência.
+- `src/sigaa-fetcher.js`: navegação autenticada, progresso e coleta de notas por disciplina.
+- `src/snapshot.js`: mesclagem e comparação semântica.
+- `src/privacy-storage.js`: armazenamento v4, migração, modo de privacidade e identidade.
+- `src/background.js`: coordenação, seleção de aba, bloqueio, cancelamento, timeout e dashboard.
+- `src/sigaa-lock.js`: bloqueio e overlay em páginas SIGAA.
+- `popup.*`: consulta rápida completa por disciplina.
+- `dashboard.*`: interface principal.
 
-- Compara snapshot anterior com snapshot atual por materia e avaliacao.
-- Marca `Nova` quando antes estava vazio, `--`, ausente, `null` ou `undefined`, e agora ha valor valido.
-- Marca `Alterada` quando antes havia valor e agora o valor mudou.
-- Marca `Removida` quando havia valor e depois ficou vazio.
-- Ignora diferencas irrelevantes de espaco.
-- Nao trata `--` para `--` como mudanca.
-- Destaque aparece na avaliacao especifica e no card da materia.
-- Materias alteradas aparecem no topo.
-- O destaque dura ate a proxima atualizacao bem-sucedida daquela materia.
-- Ao atualizar diretamente uma pagina de notas, somente a materia correspondente e substituida; as demais permanecem no snapshot.
-- A mesclagem parcial so reutiliza as demais materias quando a matricula atual coincide com a proprietaria do snapshot.
-- No modo pessoal, sessao expirada ou falha total nao substitui o ultimo snapshot valido.
-- No modo compartilhado, falhas nunca revelam o snapshot temporario e expiracao de sessao o remove.
+## Testes
 
-### Frequencia
-
-O parser captura quando disponivel:
-
-```js
-attendance: {
-  aulasMinistradas: 32,
-  aulasTotal: 80,
-  percentualCargaMinistrada: 40
-}
-```
-
-O popup calcula:
-
-```js
-presencaAtual = ((aulasMinistradas - faltas) / aulasMinistradas) * 100
-presencaFinalMaxima = ((aulasTotal - faltas) / aulasTotal) * 100
-```
-
-Estados:
-
-- Verde/OK:
-  - `presencaAtual >= 75%`
-- Amarelo/Atencao:
-  - `presencaAtual < 75%`
-  - `presencaFinalMaxima >= 75%`
-- Vermelho/Critico:
-  - `presencaFinalMaxima < 75%`
-
-Visual atual:
-
-- No card compacto: presenca, aulas e carga ministrada.
-- No card expandido: frequencia aparece por ultimo, depois das notas.
-- O bloco de frequencia e complementar, com fundo neutro.
-- Cor do estado aparece principalmente na barra, borda discreta e texto de status.
-- O campo `Máx. possível` tem tooltip:
-  - `Maior presença possível caso o aluno compareça a todas as aulas restantes.`
-
-## Ordem visual atual do card expandido
-
-1. Cabecalho da materia.
-2. Resumo rapido.
-3. Notas do 1o semestre.
-4. Notas do 2o semestre.
-5. Exame.
-6. Outros periodos/campos de nota.
-7. Resumo de notas.
-8. Frequencia.
-
-Nao existe segundo sistema de recolhimento para frequencia.
-
-## Armazenamento atual
-
-Modo pessoal:
-
-- Usa `chrome.storage.local` e mostra o ultimo painel imediatamente.
-- Persiste ao fechar/reabrir o Chrome e recarregar a extensao mantendo o mesmo ID.
-- Nao sincroniza entre computadores ou perfis.
-- Preserva o ultimo resultado valido em falhas.
-
-Modo compartilhado:
-
-- Usa `chrome.storage.session`; dados academicos nao sao gravados permanentemente.
-- O snapshot temporario permanece disponivel ao reabrir o popup enquanto a mesma sessao do Chrome estiver ativa.
-- Matricula diferente ou inconsistente impede reutilizar o snapshot anterior para comparacao ou mesclagem.
-- O snapshot temporario e removido ao encerrar o Chrome, recarregar a extensao ou detectar logout durante uma atualizacao.
-- Se nao houver identidade confiavel, o resultado atual pode ser exibido, mas nao e mantido para comparacao.
-- Janelas anonimas sempre usam este modo, mesmo quando a preferencia normal e pessoal.
-
-Limpeza e migracao:
-
-- `Limpar dados` remove chaves v3, v2, snapshots v1 e dados de sessao, mas preserva as preferencias do dispositivo e de atualizacao automatica.
-- Escolher modo compartilhado apaga imediatamente os snapshots persistentes.
-- Voltar ao modo pessoal nao promove dados temporarios para armazenamento persistente.
-- A primeira escolha pessoal migra a chave v2 para v3; ate a escolha, dados antigos ficam ocultos.
-- Nenhum modo usa `chrome.storage.sync`, `localStorage`, Web `sessionStorage` ou IndexedDB.
-
-## Testes e comandos uteis
-
-Rodar os testes:
+Executar todos os testes smoke:
 
 ```powershell
-node tests\parser-smoke.js
-node tests\teacher-fetch-smoke.js
-node tests\snapshot-smoke.js
-node tests\active-page-smoke.js
-node tests\session-expiry-smoke.js
-node tests\privacy-storage-smoke.js
-node tests\auto-refresh-smoke.js
-node tests\identity-isolation-smoke.js
-node tests\privacy-ui-smoke.js
-node tests\fixtures-privacy.js
+Get-ChildItem tests\*-smoke.js | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 ```
 
-Checar sintaxe:
+Casos cobertos incluem modelo acadêmico, `aval_...`, `unid`, `NOTA` ambíguo, placeholders, `Sit.`, fórmula 40%/60%, totais e estimativas de frequência, migração v3→v4, isolamento por matrícula, falhas de sessão, atualização parcial, cancelamento, recarga durante coleta, dashboard, website e pacote.
 
-```powershell
-node --check popup.js
-node --check src\privacy-storage.js
-node --check src\sigaa-parser.js
-node --check src\snapshot.js
-node --check src\sigaa-fetcher.js
-node --check src\background.js
-```
+Capturas reais usadas para diagnóstico ficam somente em `fixtures/private/`, diretório ignorado pelo Git. Fixtures públicas devem permanecer sintéticas e sem nome, matrícula, cookies, `ViewState` ou HTML integral real.
 
-Ver dados salvos no DevTools do popup:
+## Restrições para alterações futuras
 
-```js
-chrome.storage.local.get("sigaa-grade-monitor:data:v3", (r) => {
-  console.log(r["sigaa-grade-monitor:data:v3"]);
-});
-```
-
-Ver resumo de materias, frequencia e faltas:
-
-```js
-chrome.storage.local.get("sigaa-grade-monitor:data:v3", (r) => {
-  console.log(r["sigaa-grade-monitor:data:v3"].courses.map((c) => ({
-    materia: c.name,
-    attendance: c.attendance,
-    faltas: c.summary?.faltas
-  })));
-});
-```
-
-## Fixtures existentes
-
-- `fixtures/portal-discente.html`
-- `fixtures/turma-virtual-fisica.html`
-- `fixtures/ver-notas-fisica.html`
-
-Elas sao sinteticas e usadas para validar parsing de materias, navegacao JSF, notas, tooltips e frequencia.
-
-Capturas reais para diagnostico ficam somente em `fixtures/private/`, diretorio ignorado pelo Git. Elas nunca devem ser copiadas para as fixtures publicas sem sanitizacao.
-
-## Pontos importantes para nao quebrar
-
-- Nao criar regras especificas por disciplina, curso ou ano.
-- Nao mapear siglas manualmente por materia.
-- Nao alterar login, cookies ou sessao.
-- Nao enviar dados para fora.
-- Preservar tooltips das siglas.
-- Preservar busca e filtros.
-- Preservar cards recolhiveis.
-- Preservar materias sem notas como `Sem notas`, nao `Erro`.
-- Preservar ordenacao de materias alteradas no topo.
-- Preservar destaque de notas novas/alteradas na avaliacao especifica.
-- Preservar o snapshot selecionado pelo modo como fonte da comparacao, sempre isolado por matricula.
-
-## Possiveis proximas melhorias
-
-1. Melhor exportacao/debug:
-   - botao para copiar diagnostico sem dados sensiveis;
-   - mostrar se ha snapshot salvo.
-
-2. Melhorar confiabilidade da frequencia:
-   - confirmar se `attendance` aparece para todas as materias quando o SIGAA retorna o painel lateral em segundo plano.
-
-3. Testes adicionais:
-   - fixtures de materias sem notas;
-   - fixtures de frequencia com estados verde, amarelo e vermelho.
-
-4. Refinamento visual:
-   - pequenos ajustes de espacamento no popup apos teste real em diferentes resolucoes.
+- Não inventar regra acadêmica ausente do SIGAA ou de configuração explícita do aluno.
+- Não reclassificar `NOTA` sem evidência estrutural.
+- Não inferir fechamento de semestre por valor, posição ou situação anual.
+- Não misturar projeções e cenários com valores oficiais.
+- Não iniciar coleta por navegação ou temporizador.
+- Não substituir snapshot válido em cancelamento ou falha total.
+- Não criar regra específica por disciplina, curso ou ano.
+- Não enviar dados acadêmicos para fora do navegador.

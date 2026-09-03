@@ -37,12 +37,17 @@ jobs:
         shell: pwsh
         run: |
           $tests = @(
+            "tests/academic-model-smoke.js",
+            "tests/ui-model-smoke.js",
             "tests/parser-smoke.js",
+            "tests/dashboard-smoke.js",
             "tests/teacher-fetch-smoke.js",
             "tests/snapshot-smoke.js",
             "tests/active-page-smoke.js",
             "tests/session-expiry-smoke.js",
             "tests/privacy-storage-smoke.js",
+            "tests/manual-refresh-smoke.js",
+            "tests/cancel-refresh-smoke.js",
             "tests/identity-isolation-smoke.js",
             "tests/privacy-ui-smoke.js",
             "tests/fixtures-privacy.js",

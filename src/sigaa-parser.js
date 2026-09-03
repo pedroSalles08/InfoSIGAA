@@ -1,6 +1,10 @@
 (function () {
   "use strict";
 
+  const academicModel = globalThis.InfoSigaaAcademicModel || (
+    typeof require === "function" ? require("./academic-model.js") : null
+  );
+
   const ENTITY_MAP = {
     amp: "&",
     lt: "<",
@@ -758,7 +762,7 @@
   }
 
   function isSummaryHeader(text) {
-    const key = normalizeKey(text);
+    const key = normalizeKey(text).replace(/\.+$/, "");
     return (
       key === "media anual" ||
       key === "media" ||
@@ -770,7 +774,7 @@
   }
 
   function summaryKeyFromHeader(text) {
-    const key = normalizeKey(text);
+    const key = normalizeKey(text).replace(/\.+$/, "");
 
     if (key === "media anual" || key === "media") {
       return "mediaAnual";
@@ -872,7 +876,10 @@
   }
 
   function getAssessmentHeader(headers, periodText) {
-    return [...headers].reverse().find((cell) => isUsefulAssessmentHeader(cell, periodText)) || null;
+    const reversed = [...headers].reverse();
+    return reversed.find((cell) => cell.evaluationId || normalizeText(cell.elementId).toLowerCase() === "unid")
+      || reversed.find((cell) => isUsefulAssessmentHeader(cell, periodText))
+      || null;
   }
 
   function getFullAssessmentName(headerCell, periodCell) {
@@ -886,6 +893,162 @@
 
   function getPeriodCell(headers, periodText) {
     return headers.find((cell) => normalizePeriodKey(cell.text) === normalizePeriodKey(periodText)) || null;
+  }
+
+  function getPeriodKind(periodName) {
+    const key = normalizeKey(periodName);
+    const semesterMatch = key.match(/([12])o? semestre/);
+
+    if (semesterMatch) {
+      return { type: "semester", number: Number(semesterMatch[1]) };
+    }
+
+    return key.includes("exame")
+      ? { type: "exam", number: null }
+      : { type: "other", number: null };
+  }
+
+  function classifyAcademicColumn(header, periodName) {
+    const period = getPeriodKind(periodName);
+    const labelKey = normalizeKey(header?.text || "");
+    const elementId = normalizeText(header?.elementId || "");
+
+    if (header?.evaluationId || /^aval_/i.test(elementId)) {
+      return { role: "assessment", evidence: "evaluation-id" };
+    }
+
+    if (elementId.toLowerCase() === "unid") {
+      if (period.type === "semester") {
+        return { role: "semester_result", evidence: "unit-column" };
+      }
+
+      if (period.type === "exam") {
+        return { role: "exam_result", evidence: "unit-column" };
+      }
+    }
+
+    if (period.type === "semester" && labelKey && labelKey !== "nota") {
+      return { role: "assessment", evidence: "semester-assessment-column" };
+    }
+
+    return {
+      role: "unclassified",
+      evidence: labelKey === "nota" ? "ambiguous-note-label" : "unclassified-column"
+    };
+  }
+
+  function makeAcademicValue(gradeValue, header, periodName, columnIndex) {
+    const classification = classifyAcademicColumn(header, periodName);
+    const period = getPeriodKind(periodName);
+    const headerId = header?.evaluationId || header?.elementId || "";
+    const sourceKey = classification.role === "semester_result"
+      ? `semester:${period.number}:result`
+      : classification.role === "exam_result"
+        ? "exam:result"
+        : `${period.type}:${period.number || normalizeKey(periodName)}:${headerId || columnIndex}:${classification.role}`;
+
+    return academicModel.createValue({
+      sourceKey,
+      role: classification.role,
+      label: gradeValue.label,
+      fullName: gradeValue.nomeCompleto,
+      value: gradeValue.value,
+      rawValue: gradeValue.rawValue,
+      evidence: classification.evidence
+    });
+  }
+
+  function buildPerformance(periods, summary) {
+    const semesters = [];
+    const unclassified = [];
+    let exam = academicModel.createValue({
+      sourceKey: "exam:result",
+      role: "exam_result",
+      label: "Exame",
+      columnExists: false,
+      evidence: "column-not-exposed"
+    });
+
+    (periods || []).forEach((period) => {
+      const kind = getPeriodKind(period.name);
+      const values = (period.grades || []).map((gradeValue, index) =>
+        makeAcademicValue(gradeValue, gradeValue._header, period.name, gradeValue.sourceColumnIndex ?? index)
+      );
+
+      if (kind.type === "semester") {
+        semesters.push({
+          number: kind.number,
+          label: `${kind.number}º semestre`,
+          assessments: values.filter((value) => value.role === "assessment"),
+          result: values.find((value) => value.role === "semester_result") || academicModel.createValue({
+            sourceKey: `semester:${kind.number}:result`,
+            role: "semester_result",
+            label: `Resultado do ${kind.number}º semestre`,
+            columnExists: false,
+            evidence: "column-not-exposed"
+          })
+        });
+      } else if (kind.type === "exam") {
+        exam = values.find((value) => value.role === "exam_result") || exam;
+      }
+
+      unclassified.push(...values.filter((value) => value.role === "unclassified"));
+    });
+
+    [1, 2].forEach((number) => {
+      if (!semesters.some((semester) => semester.number === number)) {
+        semesters.push({
+          number,
+          label: `${number}º semestre`,
+          assessments: [],
+          result: academicModel.createValue({
+            sourceKey: `semester:${number}:result`,
+            role: "semester_result",
+            label: `Resultado do ${number}º semestre`,
+            columnExists: false,
+            evidence: "semester-not-exposed"
+          })
+        });
+      }
+    });
+
+    semesters.sort((left, right) => left.number - right.number);
+
+    return {
+      semesters,
+      annual: {
+        average: academicModel.createValue({
+          sourceKey: "annual:average",
+          role: "annual_average",
+          label: "Média anual",
+          value: summary?.mediaAnual || "",
+          rawValue: summary?.mediaAnual || "",
+          columnExists: Object.prototype.hasOwnProperty.call(summary || {}, "mediaAnual"),
+          evidence: "annual-summary-column"
+        }),
+        result: academicModel.createValue({
+          sourceKey: "annual:result",
+          role: "annual_result",
+          label: "Resultado",
+          value: summary?.resultado || "",
+          rawValue: summary?.resultado || "",
+          columnExists: Object.prototype.hasOwnProperty.call(summary || {}, "resultado"),
+          evidence: "annual-summary-column"
+        }),
+        situation: academicModel.createValue({
+          sourceKey: "annual:situation",
+          role: "annual_situation",
+          label: "Situação",
+          value: summary?.situacao || "",
+          rawValue: summary?.situacao || "",
+          columnExists: Object.prototype.hasOwnProperty.call(summary || {}, "situacao"),
+          evidence: "annual-summary-column"
+        })
+      },
+      exam,
+      unclassified,
+      needsRefresh: false
+    };
   }
 
   function parseGenericGradeRow(tableHtml) {
@@ -931,13 +1094,21 @@
         periodo: periodName,
         value: valueOrEmpty(value),
         valor: valueOrEmpty(value),
-        rawValue: normalizeText(value)
+        rawValue: normalizeText(value),
+        _header: assessmentHeader,
+        sourceColumnIndex: columnIndex
       });
     }
 
+    const parsedPeriods = Array.from(periodsByName.values()).filter((period) => period.grades.length > 0);
+
     return {
       ...identity,
-      periods: Array.from(periodsByName.values()).filter((period) => period.grades.length > 0),
+      periods: parsedPeriods.map((period) => ({
+        ...period,
+        grades: period.grades.map(({ _header, ...gradeValue }) => gradeValue)
+      })),
+      performance: buildPerformance(parsedPeriods, summary),
       summary,
       rawCells: studentCells
     };
@@ -952,42 +1123,39 @@
     const secondSemester = [grade("Nota", cells[index++])];
     const exam = [grade("Nota", cells[index++])];
 
+    const periods = [
+      { name: "1º Semestre", grades: firstSemester },
+      { name: "2º Semestre", grades: secondSemester },
+      { name: "Exame", grades: exam }
+    ];
+    const summary = {
+      mediaAnual: valueOrEmpty(cells[index++]),
+      resultado: valueOrEmpty(cells[index++]),
+      faltas: valueOrEmpty(cells[index++]),
+      situacao: valueOrEmpty(cells[index++])
+    };
+
     return {
       ...identity,
-      periods: [
-        {
-          name: "1o Semestre",
-          grades: firstSemester
-        },
-        {
-          name: "2o Semestre",
-          grades: secondSemester
-        },
-        {
-          name: "Exame",
-          grades: exam
-        }
-      ],
-      summary: {
-        mediaAnual: valueOrEmpty(cells[index++]),
-        resultado: valueOrEmpty(cells[index++]),
-        faltas: valueOrEmpty(cells[index++]),
-        situacao: valueOrEmpty(cells[index++])
-      },
+      periods,
+      performance: { ...buildPerformance(periods, summary), needsRefresh: true },
+      summary,
       rawCells: cells
     };
   }
 
   function parseFallbackGradeRow(cells) {
     const { gradeStartIndex, ...identity } = getStudentIdentity(cells);
+    const periods = [
+      {
+        name: "Notas",
+        grades: cells.slice(gradeStartIndex).map((value, index) => grade(`Campo ${index + 1}`, value))
+      }
+    ];
     return {
       ...identity,
-      periods: [
-        {
-          name: "Notas",
-          grades: cells.slice(gradeStartIndex).map((value, index) => grade(`Campo ${index + 1}`, value))
-        }
-      ],
+      periods,
+      performance: { ...buildPerformance(periods, {}), needsRefresh: true },
       summary: {},
       rawCells: cells
     };
